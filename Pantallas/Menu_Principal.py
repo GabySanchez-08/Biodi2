@@ -2,7 +2,6 @@ from Base_App import Base_App
 import flet as ft
 import os
 from Formulario_subida import Formulario_Subida
-from Capturar_Ojos import Capturar_Ojos
 from Ver_Historial import Ver_Historial  # Suponiendo que tengas este módulo
 
 class Menu_Principal(Base_App):
@@ -27,7 +26,7 @@ class Menu_Principal(Base_App):
         ]
 
         botones_historial = [
-            ft.ElevatedButton("Ver historial de pacientes", on_click=lambda e: Ver_Historial(self.page).mostrar())
+            ft.ElevatedButton("Ver historial de pacientes", on_click=lambda e: Ver_Historial(self.page, usuario=self.usuario, rol=self.rol).mostrar())
         ]
 
         # Sección Evaluación

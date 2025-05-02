@@ -5,6 +5,7 @@ import base64
 import json
 from datetime import datetime
 from firebase_config import db, bucket
+from Generar_Reporte import generar_reporte_pdf
 
 class Formulario_Subida(Base_App):
     def mostrar(self):
@@ -54,7 +55,6 @@ class Formulario_Subida(Base_App):
                         self.nombre, self.dni, self.edad, self.sexo, self.observaciones,
                         ft.ElevatedButton("Enviar", on_click=self.enviar_todo, bgcolor="green", color="white"),
                         self.resultado
-                        
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -138,18 +138,19 @@ class Formulario_Subida(Base_App):
         if os.path.exists(path_json_local):
             os.remove(path_json_local)
 
+        # 🔽 Generar reporte PDF
+        generar_reporte_pdf(datos_paciente)
+
         self.mostrar_confirmacion()
 
     def mostrar_confirmacion(self):
         self.page.clean()
-
         boton_menu = ft.ElevatedButton(
             "Volver al menú principal",
             on_click=self.volver_menu,
             bgcolor="blue",
             color="white"
         )
-
         self.page.add(
             ft.Column([
                 self.cargar_logo(),
@@ -164,4 +165,4 @@ class Formulario_Subida(Base_App):
 
     def volver_menu(self, e):
         from Menu_Principal import Menu_Principal
-        Menu_Principal(self.page).mostrar()
+        Menu_Principal(self.page, usuario=self.usuario, rol=self.rol).mostrar()

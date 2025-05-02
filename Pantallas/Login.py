@@ -23,7 +23,7 @@ class Login(Base_App):
             ayuda_mensaje.content.value = "Por el momento no se pueden recuperar contraseñas desde nuestra app. Por favor, contáctese con la institución a la que pertenece."
             self.page.update()
 
-        def validar_credenciales(e):
+        def validar_credenciales(e=None):
             usuario = user_input.value.strip()
             contraseña = pass_input.value.strip()
 
@@ -33,13 +33,10 @@ class Login(Base_App):
                 self.page.update()
                 return
 
-            # Construye el correo electrónico
-            correo = f"{usuario.lower()}@keratotech.com"  # ej. tec001@keratotech.com
+            correo = f"{usuario.lower()}@keratotech.com"
 
             try:
                 user = auth.sign_in_with_email_and_password(correo, contraseña)
-
-                # Identificar tipo de usuario
                 if usuario.upper().startswith("TEC"):
                     rol = "TEC"
                 elif usuario.upper().startswith("MED"):
@@ -50,7 +47,6 @@ class Login(Base_App):
                     self.page.update()
                     return
 
-                # Puedes pasar el rol al menú principal si lo necesitas
                 Menu_Principal(self.page, usuario=usuario.upper(), rol=rol).mostrar()
 
             except Exception as err:
@@ -59,9 +55,17 @@ class Login(Base_App):
                 print(f"Error: {err}")
                 self.page.update()
 
+        # Cambios clave aquí
+        def enfocar_contraseña(e):
+            pass_input.focus()  # ✅ Enfoca directamente el campo de contraseña
+            self.page.update()
+
+        user_input.on_submit = enfocar_contraseña
+        pass_input.on_submit = validar_credenciales
+
         login_layout = ft.Column([
             logo,
-            ft.Text("Hola, Bienvenido a KeratoTECH", size=30, weight="bold", color="#5E35B1"),
+            ft.Text("Hola, Bienvenido a KeratoTECH", size=30, weight="bold", color="#1E88E5"),
             ft.Text("Inicio de sesión", size=20),
             user_input,
             pass_input,
