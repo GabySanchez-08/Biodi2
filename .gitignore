@@ -1,0 +1,40 @@
+# Archivos sensibles
+*.json
+*.env
+*.key
+*.pem
+
+# Archivos específicos tuyos
+keratotech*.json
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de caché de Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Archivos de logs
+*.log
+
+# Entornos virtuales de Python
+env/
+venv/
+ENV/
+
+# Archivos de configuración del editor
+.vscode/
+.idea/
+
+# Archivos generados por Flet o temporalmente durante ejecución
+.flet/
+*.db
+*.sqlite
+
+# Backup files
+*~
+*.bak
+*.swp

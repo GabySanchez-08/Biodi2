@@ -1,9 +1,11 @@
 class Base_App:
     logo_precalculado = None
 
-    def __init__(self, page):
+    def __init__(self, page, usuario=None, rol=None):
         self.page = page
-
+        self.usuario = usuario
+        self.rol = rol
+        
     def limpiar(self):
         """Limpia la pantalla"""
         if self.page:

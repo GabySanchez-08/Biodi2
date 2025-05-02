@@ -1,6 +1,8 @@
 from Base_App import Base_App
 import flet as ft
 from Menu_Principal import Menu_Principal
+from firebase_auth_config import auth
+
 class Login(Base_App):
     def mostrar(self):
         self.limpiar()
@@ -10,7 +12,6 @@ class Login(Base_App):
         pass_input = ft.TextField(label="Contraseña", password=True, can_reveal_password=True, width=400)
         mensaje = ft.Text("", size=14)
 
-        # Mensaje de ayuda en un contenedor centrado
         ayuda_mensaje = ft.Container(
             content=ft.Text("", size=14, color="gray", text_align=ft.TextAlign.CENTER),
             alignment=ft.alignment.center,
@@ -23,11 +24,39 @@ class Login(Base_App):
             self.page.update()
 
         def validar_credenciales(e):
-            if user_input.value == "admin" and pass_input.value == "1234":
-                Menu_Principal(self.page).mostrar() # <--- Aquí
-            else:
+            usuario = user_input.value.strip()
+            contraseña = pass_input.value.strip()
+
+            if not usuario or not contraseña:
+                mensaje.value = "Completa todos los campos"
+                mensaje.color = "red"
+                self.page.update()
+                return
+
+            # Construye el correo electrónico
+            correo = f"{usuario.lower()}@keratotech.com"  # ej. tec001@keratotech.com
+
+            try:
+                user = auth.sign_in_with_email_and_password(correo, contraseña)
+
+                # Identificar tipo de usuario
+                if usuario.upper().startswith("TEC"):
+                    rol = "TEC"
+                elif usuario.upper().startswith("MED"):
+                    rol = "MED"
+                else:
+                    mensaje.value = "Usuario no reconocido como TEC o MED"
+                    mensaje.color = "red"
+                    self.page.update()
+                    return
+
+                # Puedes pasar el rol al menú principal si lo necesitas
+                Menu_Principal(self.page, usuario=usuario.upper(), rol=rol).mostrar()
+
+            except Exception as err:
                 mensaje.value = "Credenciales inválidas"
                 mensaje.color = "red"
+                print(f"Error: {err}")
                 self.page.update()
 
         login_layout = ft.Column([
@@ -39,7 +68,7 @@ class Login(Base_App):
             ft.ElevatedButton("Ingresar", on_click=validar_credenciales),
             mensaje,
             ft.TextButton("¿No tienes tu usuario y contraseña?", on_click=mostrar_ayuda),
-            ayuda_mensaje  # se muestra centrado y delgado
+            ayuda_mensaje
         ],
         alignment=ft.MainAxisAlignment.CENTER,
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
