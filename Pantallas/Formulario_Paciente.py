@@ -71,6 +71,12 @@ class Formulario_Paciente(Base_App):
             self.page.update()
             return
 
+        # Mostrar ruedita de carga
+        self.resultado.value = "Enviando datos..."
+        self.resultado.color = "black"
+        self.enviar_btn.disabled = True
+        self.page.update()
+
         fecha = datetime.now().strftime("%d-%m-%Y")
         hora = datetime.now().strftime("%H:%M:%S")
 
@@ -93,10 +99,10 @@ class Formulario_Paciente(Base_App):
                 blob.upload_from_filename(local_file)
                 datos[f"url_ojo_{ojo}"] = blob.public_url
 
-        # Subir a Firestore
+        # Subir datos
         db.collection("pacientes").document(self.dni.value).collection("registros").document(fecha).set(datos)
 
-        # Generar reporte
+        # Generar y subir reporte
         generar_reporte_pdf(datos)
 
         # Eliminar imágenes locales
@@ -109,16 +115,23 @@ class Formulario_Paciente(Base_App):
     def mostrar_confirmacion(self):
         self.page.clean()
         boton_menu = ft.ElevatedButton("Volver al menú principal", on_click=self.volver_menu, bgcolor="blue", color="white")
+
+        contenido = ft.Column([
+            self.cargar_logo(),
+            ft.Text("Datos enviados correctamente", size=24, weight="bold", color="green", text_align=ft.TextAlign.CENTER),
+            boton_menu
+        ],
+        alignment=ft.MainAxisAlignment.CENTER,
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        spacing=30)
+
         self.page.add(
-            ft.Column([
-                self.cargar_logo(),
-                ft.Text("Datos enviados correctamente", size=24, weight="bold", color="green", text_align=ft.TextAlign.CENTER),
-                boton_menu
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=30
-        ))
+            ft.Container(
+                content=contenido,
+                alignment=ft.alignment.center,
+                expand=True
+            )
+        )
         self.page.update()
 
     def volver_atras(self, e):

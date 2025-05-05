@@ -33,7 +33,7 @@ class Formulario_Subida(Base_App):
         self.file_picker = ft.FilePicker(on_result=self.on_file_picked)
         self.file_picker2 = ft.FilePicker(on_result=self.on_file2_picked)
         self.page.overlay.extend([self.file_picker, self.file_picker2])
-
+        self.enviar_btn = ft.ElevatedButton("Guardar y Enviar", on_click=self.guardar_todo, bgcolor="green")
         self.page.add(
             ft.Stack([
                 ft.Container(
@@ -53,7 +53,7 @@ class Formulario_Subida(Base_App):
                         self.imagen_izquierda,
                         ft.Divider(),
                         self.nombre, self.dni, self.edad, self.sexo, self.observaciones,
-                        ft.ElevatedButton("Enviar", on_click=self.enviar_todo, bgcolor="green", color="white"),
+                        self.enviar_btn,
                         self.resultado
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
@@ -94,72 +94,89 @@ class Formulario_Subida(Base_App):
                 self.imagen_izquierda.visible = True
                 self.page.update()
 
-    def enviar_todo(self, e):
+    def guardar_todo(self, e):
         if not (self.nombre.value and self.dni.value and self.edad.value and self.sexo.value):
             self.resultado.value = "Faltan datos obligatorios."
             self.resultado.color = "red"
             self.page.update()
             return
 
-        fecha_actual = datetime.now().strftime("%d-%m-%Y")
+        # Mostrar ruedita de carga
+        self.resultado.value = "Enviando datos..."
+        self.resultado.color = "black"
+        self.enviar_btn.disabled = True
+        self.page.update()
 
-        datos_paciente = {
+        fecha = datetime.now().strftime("%d-%m-%Y")
+        hora = datetime.now().strftime("%H:%M:%S")
+
+        datos = {
             "nombre": self.nombre.value,
             "dni": self.dni.value,
             "edad": self.edad.value,
             "sexo": self.sexo.value,
             "observaciones": self.observaciones.value,
-            "fecha_registro": fecha_actual
+            "fecha_registro": fecha,
+            "hora_registro": hora,
+            "tecnico_id": self.usuario if self.usuario else "offline"
         }
 
         # Subir imágenes si existen
         if self.imagen_derecha.visible and self.file_picker.result:
             path_local = self.file_picker.result.files[0].path
-            blob = bucket.blob(f"pacientes/{self.dni.value}/{fecha_actual}/imagenes/ojo_derecho.jpg")
+            blob = bucket.blob(f"pacientes/{self.dni.value}/{fecha}/imagenes/ojo_derecho.jpg")
             blob.upload_from_filename(path_local)
-            datos_paciente["url_ojo_derecho"] = blob.public_url
+            datos["url_ojo_derecho"] = blob.public_url
 
         if self.imagen_izquierda.visible and self.file_picker2.result:
             path_local = self.file_picker2.result.files[0].path
-            blob = bucket.blob(f"pacientes/{self.dni.value}/{fecha_actual}/imagenes/ojo_izquierdo.jpg")
+            blob = bucket.blob(f"pacientes/{self.dni.value}/{fecha}/imagenes/ojo_izquierdo.jpg")
             blob.upload_from_filename(path_local)
-            datos_paciente["url_ojo_izquierdo"] = blob.public_url
+            datos["url_ojo_izquierdo"] = blob.public_url
 
         # Subir JSON local
         path_json_local = f"{self.dni.value}_formulario.json"
         with open(path_json_local, 'w', encoding='utf-8') as f:
-            json.dump(datos_paciente, f, ensure_ascii=False, indent=4)
+            json.dump(datos, f, ensure_ascii=False, indent=4)
 
-        blob_formulario = bucket.blob(f"pacientes/{self.dni.value}/{fecha_actual}/formulario.json")
+        blob_formulario = bucket.blob(f"pacientes/{self.dni.value}/{fecha}/formulario.json")
         blob_formulario.upload_from_filename(path_json_local)
 
-        db.collection("pacientes").document(self.dni.value).collection("registros").document(fecha_actual).set(datos_paciente)
+        db.collection("pacientes").document(self.dni.value).collection("registros").document(fecha).set(datos)
 
         if os.path.exists(path_json_local):
             os.remove(path_json_local)
 
         # 🔽 Generar reporte PDF
-        generar_reporte_pdf(datos_paciente)
+        generar_reporte_pdf(datos)
 
+        # Eliminar imágenes locales
+        for archivo in ["ojo_derecho.jpg", "ojo_izquierdo.jpg"]:
+            if os.path.exists(archivo):
+                os.remove(archivo)
+
+        self.mostrar_confirmacion()
         self.mostrar_confirmacion()
 
     def mostrar_confirmacion(self):
         self.page.clean()
-        boton_menu = ft.ElevatedButton(
-            "Volver al menú principal",
-            on_click=self.volver_menu,
-            bgcolor="blue",
-            color="white"
-        )
+        boton_menu = ft.ElevatedButton("Volver al menú principal", on_click=self.volver_menu, bgcolor="blue", color="white")
+
+        contenido = ft.Column([
+            self.cargar_logo(),
+            ft.Text("Datos enviados correctamente", size=24, weight="bold", color="green", text_align=ft.TextAlign.CENTER),
+            boton_menu
+        ],
+        alignment=ft.MainAxisAlignment.CENTER,
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        spacing=30)
+
         self.page.add(
-            ft.Column([
-                self.cargar_logo(),
-                ft.Text("Datos enviados correctamente", size=24, weight="bold", color="green", text_align=ft.TextAlign.CENTER),
-                boton_menu
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=30)
+            ft.Container(
+                content=contenido,
+                alignment=ft.alignment.center,
+                expand=True
+            )
         )
         self.page.update()
 

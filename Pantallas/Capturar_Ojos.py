@@ -51,7 +51,7 @@ class Capturar_Ojos(Base_App):
                         self.imagen_preview,
                         self.estado,
                         self.botones
-                    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=20),
+                    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
                     alignment=ft.alignment.center,
                     expand=True
                 )
@@ -81,6 +81,17 @@ class Capturar_Ojos(Base_App):
         while self.stream_running:
             ret, frame = self.cap.read()
             if ret and not self.captura_realizada:
+                # Obtener dimensiones
+                height, width, _ = frame.shape
+                center_x, center_y = width // 2, height // 2
+
+                # Dibujar línea horizontal y vertical (cruz)
+                cv2.line(frame, (0, center_y), (width, center_y), (0, 255, 0), 4)  ## el ultimo valor es el grosor
+                cv2.line(frame, (center_x, 0), (center_x, height), (0, 255, 0), 4)
+
+                # Dibujar círculo pequeño en el centro
+                cv2.circle(frame, (center_x, center_y), 12, (0, 255, 0), -1) # el primer valor post coordenadas es el radio
+
                 _, buf = cv2.imencode(".jpg", frame)
                 img_base64 = buf.tobytes()
                 self.imagen_preview.src_base64 = base64.b64encode(img_base64).decode('utf-8')

@@ -2,7 +2,7 @@ from Base_App import Base_App
 import flet as ft
 import os
 from Formulario_subida import Formulario_Subida
-from Ver_Historial import Ver_Historial  # Suponiendo que tengas este módulo
+from Ver_Historial import Ver_Historial
 
 class Menu_Principal(Base_App):
 
@@ -12,8 +12,31 @@ class Menu_Principal(Base_App):
         from datetime import datetime
         fecha_actual = datetime.now().strftime("%d/%m/%Y %H:%M")
 
-        saludo = ft.Text(f"Bienvenido, {'Especialista' if self.rol == 'MED' else 'Técnico'}", size=22, weight="bold", text_align=ft.TextAlign.CENTER)
-        fecha = ft.Text(f"Fecha y hora: {fecha_actual}", size=12, color="gray", text_align=ft.TextAlign.CENTER)
+        saludo = ft.Text(f"Bienvenido, {'Especialista' if self.rol == 'MED' else 'Técnico'}", size=22, weight="bold")
+        fecha = ft.Text(f"Fecha y hora: {fecha_actual}", size=12, color="gray")
+
+        # Header fijo
+        header = ft.Container(
+            content=ft.Row([
+                ft.ElevatedButton(
+                    "Cerrar sesión",
+                    bgcolor=ft.colors.RED_300,
+                    color=ft.colors.WHITE,
+                    on_click=self.cerrar_sesion
+                ),
+                ft.TextButton(
+                    content=ft.Row([
+                        ft.Icon(ft.icons.PERSON_OUTLINE),
+                        ft.Text("Mi perfil", size=14)
+                    ],
+                    spacing=5,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    on_click=self.ver_perfil
+                )
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            padding=10
+        )
 
         botones_evaluacion = [
             ft.ElevatedButton("Conectar dispositivo y escanear córnea", on_click=lambda e: self.preparar_captura()),
@@ -33,66 +56,52 @@ class Menu_Principal(Base_App):
         seccion_evaluacion = ft.Column([
             ft.Text("Evaluación", size=20, weight="bold"),
             *botones_evaluacion
-        ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10)
+        ], spacing=10, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
 
         # Sección Capturas pendientes
         seccion_pendientes = ft.Column([
             ft.Text("Capturas pendientes", size=20, weight="bold"),
             *botones_pendientes
-        ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10)
+        ], spacing=10, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
 
         # Sección Historial
         seccion_historial = ft.Column([
             ft.Text("Historial y reportes", size=20, weight="bold"),
             *botones_historial
-        ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10)
+        ], spacing=10, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
 
         # Sección Opcional
         seccion_opciones = ft.Column([
             ft.Text("Opciones", size=20, weight="bold"),
-            ft.ElevatedButton("Mi perfil", on_click=lambda e: ft.SnackBar(ft.Text("Perfil")).open),
             ft.ElevatedButton("Guía rápida de uso", on_click=lambda e: ft.SnackBar(ft.Text("Guía")).open)
-        ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10)
-
-        def cerrar_sesion(e):
-            from Login import Login
-            Login(self.page).mostrar()
-
-        cerrar_btn = ft.Container(
-            ft.ElevatedButton("Cerrar sesión", on_click=cerrar_sesion, bgcolor=ft.colors.RED_300, color=ft.colors.WHITE),
-            alignment=ft.alignment.bottom_left,
-            padding=10
-        )
+        ], spacing=10, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
 
         self.page.add(
-            ft.Stack([
-                ft.Container(
-                    ft.Column([
-                        logo,
-                        saludo,
-                        fecha,
-                        ft.Divider(),
-                        seccion_evaluacion,
-                        ft.Divider(),
-                        seccion_pendientes,
-                        ft.Divider(),
-                        seccion_historial,
-                        ft.Divider(),
-                        seccion_opciones
-                    ],
-                    alignment=ft.MainAxisAlignment.CENTER,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=25),
-                    alignment=ft.alignment.center,
-                    expand=True
-                ),
-                cerrar_btn
-            ])
+            ft.Column([
+                header,
+                logo,
+                saludo,
+                fecha,
+                ft.Divider(),
+                seccion_evaluacion,
+                ft.Divider(),
+                seccion_pendientes,
+                ft.Divider(),
+                seccion_historial,
+                ft.Divider(),
+                seccion_opciones
+            ], spacing=25, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
         )
         self.page.update()
 
+    def cerrar_sesion(self, e):
+        from Login import Login
+        Login(self.page).mostrar()
+
+    def ver_perfil(self, e):
+        ft.SnackBar(ft.Text("Mi perfil (en construcción)")).open
+
     def preparar_captura(self):
-        #Borra las capturas viejas en el caché para comenzar de 0
         for archivo in ["ojo_derecho.jpg", "ojo_izquierdo.jpg"]:
             if os.path.exists(archivo):
                 os.remove(archivo)
