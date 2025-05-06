@@ -1,9 +1,10 @@
-from Base_App import Base_App
+from Pantallas.Base_App import Base_App
 import flet as ft
 import os
-from Formulario_subida import Formulario_Subida
-from Ver_Historial import Ver_Historial
-from Guia_Uso import Guia_Uso
+from Pantallas.Formulario_subida import Formulario_Subida
+from Pantallas.Ver_Historial import Ver_Historial
+from Pantallas.Guia_Uso import Guia_Uso
+from Pantallas.Capturas_Pendientes import Capturas_Pendientes
 
 class Menu_Principal(Base_App):
 
@@ -45,8 +46,8 @@ class Menu_Principal(Base_App):
         ]
 
         botones_pendientes = [
-            ft.ElevatedButton("Ver capturas locales", on_click=lambda e: ft.SnackBar(ft.Text("Ver capturas locales")).open),
-            ft.ElevatedButton("Subir capturas pendientes", on_click=lambda e: ft.SnackBar(ft.Text("Subir capturas pendientes")).open)
+            
+            ft.ElevatedButton("Ver capturas pendientes", on_click=lambda e: Capturas_Pendientes(self.page, self.usuario, self.rol).mostrar())
         ]
 
         botones_historial = [
@@ -98,7 +99,7 @@ class Menu_Principal(Base_App):
         self.page.update()
 
     def cerrar_sesion(self, e):
-        from Login import Login
+        from Pantallas.Login import Login
         Login(self.page).mostrar()
 
     def ver_perfil(self, e):
@@ -108,5 +109,5 @@ class Menu_Principal(Base_App):
         for archivo in ["ojo_derecho.jpg", "ojo_izquierdo.jpg"]:
             if os.path.exists(archivo):
                 os.remove(archivo)
-        from Capturar_Ojos import Capturar_Ojos
+        from Pantallas.Capturar_Ojos import Capturar_Ojos
         Capturar_Ojos(self.page, self.usuario, self.rol).mostrar()

@@ -1,11 +1,11 @@
-from Base_App import Base_App
+from Pantallas.Base_App import Base_App
 import flet as ft
 import os
 import base64
 import json
 from datetime import datetime
-from firebase_config import db, bucket
-from Generar_Reporte import generar_reporte_pdf
+from Pantallas.firebase_config import db, bucket
+from Pantallas.Generar_Reporte import generar_reporte_pdf
 
 class Formulario_Subida(Base_App):
     def mostrar(self):
@@ -181,5 +181,5 @@ class Formulario_Subida(Base_App):
         self.page.update()
 
     def volver_menu(self, e):
-        from Menu_Principal import Menu_Principal
+        from Pantallas.Menu_Principal import Menu_Principal
         Menu_Principal(self.page, usuario=self.usuario, rol=self.rol).mostrar()

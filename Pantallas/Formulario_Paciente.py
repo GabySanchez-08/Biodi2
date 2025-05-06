@@ -1,12 +1,27 @@
 # === Archivo: Formulario_Paciente.py ===
-from Base_App import Base_App
+from Pantallas.Base_App import Base_App
 import flet as ft
 import os
 from datetime import datetime
-from firebase_config import db, bucket
-from Generar_Reporte import generar_reporte_pdf
+import urllib.request
+import json
+
+try:
+    from Pantallas.firebase_config import db, bucket
+except ImportError:
+    db = bucket = None
+
+from Pantallas.Generar_Reporte import generar_reporte_pdf
 
 class Formulario_Paciente(Base_App):
+    def __init__(self, page, usuario=None, rol=None):
+        super().__init__(page, usuario, rol)
+        
+        if self.hay_conexion():
+            self.modo_online = True
+        else:
+            self.modo_online = False
+
     def mostrar(self):
         self.limpiar()
 
@@ -52,6 +67,14 @@ class Formulario_Paciente(Base_App):
         )
         self.page.update()
 
+    def hay_conexion(self):
+        try:
+            urllib.request.urlopen('https://www.google.com', timeout=3)
+            return True
+        except:
+            return False
+
+
     def detectar_capturas(self):
         od = os.path.exists("ojo_derecho.jpg")
         oi = os.path.exists("ojo_izquierdo.jpg")
@@ -71,8 +94,7 @@ class Formulario_Paciente(Base_App):
             self.page.update()
             return
 
-        # Mostrar ruedita de carga
-        self.resultado.value = "Enviando datos..."
+        self.resultado.value = "Guardando..."
         self.resultado.color = "black"
         self.enviar_btn.disabled = True
         self.page.update()
@@ -91,7 +113,15 @@ class Formulario_Paciente(Base_App):
             "tecnico_id": self.usuario if self.usuario else "offline"
         }
 
-        # Subir imágenes
+        if self.modo_online:
+            self.guardar_online(datos, fecha)
+        else:
+            self.guardar_offline(datos, fecha)
+
+        self.eliminar_imagenes_locales()
+        self.mostrar_confirmacion()
+
+    def guardar_online(self, datos, fecha):
         for ojo in ["derecho", "izquierdo"]:
             local_file = f"ojo_{ojo}.jpg"
             if os.path.exists(local_file):
@@ -99,18 +129,31 @@ class Formulario_Paciente(Base_App):
                 blob.upload_from_filename(local_file)
                 datos[f"url_ojo_{ojo}"] = blob.public_url
 
-        # Subir datos
         db.collection("pacientes").document(self.dni.value).collection("registros").document(fecha).set(datos)
+        generar_reporte_pdf(datos) #generar y subir reporte
+    
+    def guardar_offline(self, datos, fecha):
+        ruta_base = f"capturas_pendientes/{self.dni.value}_{fecha}"
+        os.makedirs(ruta_base, exist_ok=True)
 
-        # Generar y subir reporte
-        generar_reporte_pdf(datos)
+        for ojo in ["derecho", "izquierdo"]:
+            archivo = f"ojo_{ojo}.jpg"
+            if os.path.exists(archivo):
+                nueva_ruta = os.path.join(ruta_base, f"{fecha}_{archivo}")
+                os.rename(archivo, nueva_ruta)
+                datos[f"archivo_local_ojo_{ojo}"] = nueva_ruta
 
-        # Eliminar imágenes locales
+        # Guardar el JSON con los datos del paciente
+        with open(os.path.join(ruta_base, f"{self.dni.value}_{fecha}_datos.json"), "w") as f:
+            json.dump(datos, f, indent=2)
+
+        # Generar reporte en la misma carpeta
+        generar_reporte_pdf(datos, ruta_salida=os.path.join(ruta_base, f"{self.dni.value}_{fecha}_reporte.pdf"))
+        
+    def eliminar_imagenes_locales(self):
         for archivo in ["ojo_derecho.jpg", "ojo_izquierdo.jpg"]:
             if os.path.exists(archivo):
                 os.remove(archivo)
-
-        self.mostrar_confirmacion()
 
     def mostrar_confirmacion(self):
         self.page.clean()
@@ -118,7 +161,7 @@ class Formulario_Paciente(Base_App):
 
         contenido = ft.Column([
             self.cargar_logo(),
-            ft.Text("Datos enviados correctamente", size=24, weight="bold", color="green", text_align=ft.TextAlign.CENTER),
+            ft.Text("Datos guardados correctamente", size=24, weight="bold", color="green", text_align=ft.TextAlign.CENTER),
             boton_menu
         ],
         alignment=ft.MainAxisAlignment.CENTER,
@@ -135,9 +178,14 @@ class Formulario_Paciente(Base_App):
         self.page.update()
 
     def volver_atras(self, e):
-        from Capturar_Ojos import Capturar_Ojos
+        from Pantallas.Capturar_Ojos import Capturar_Ojos
         Capturar_Ojos(self.page, usuario=self.usuario, rol=self.rol).mostrar()
 
     def volver_menu(self, e):
-        from Menu_Principal import Menu_Principal
-        Menu_Principal(self.page, usuario=self.usuario, rol=self.rol).mostrar()
+        if self.modo_online:
+            from Pantallas.Menu_Principal import Menu_Principal
+            Menu_Principal(self.page, usuario=self.usuario, rol=self.rol).mostrar()
+        else:
+            from Pantallas.Menu_Offline import Menu_Offline
+            Menu_Offline(self.page).mostrar()
+        

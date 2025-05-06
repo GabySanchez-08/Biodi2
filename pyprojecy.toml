@@ -1,0 +1,7 @@
+[tool.flet]
+name = "KeratoTech"
+entry = "Pantallas/Main.py"
+version = "1.0.0"
+description = "Software para diagnóstico corneal"
+product_name = "KeratoTech"
+organization = "GabyTech"

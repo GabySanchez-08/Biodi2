@@ -1,5 +1,5 @@
 # === Archivo: Capturar_Ojos.py ===
-from Base_App import Base_App
+from Pantallas.Base_App import Base_App
 import flet as ft
 import cv2
 import base64
@@ -7,6 +7,9 @@ import asyncio
 import os
 
 class Capturar_Ojos(Base_App):
+    def __init__(self, page, usuario=None, rol=None):
+        super().__init__(page, usuario, rol)
+        self.mostrando_todos = False 
     def mostrar(self):
         self.limpiar()
 
@@ -151,14 +154,14 @@ class Capturar_Ojos(Base_App):
             print("[ADVERTENCIA] No se ha capturado ningún ojo. No se puede continuar.")
             return
         self.detener_stream()
-        from Formulario_Paciente import Formulario_Paciente
+        from Pantallas.Formulario_Paciente import Formulario_Paciente
         Formulario_Paciente(self.page).mostrar()
 
     def volver_menu(self, e):
         print("[INFO] Botón 'Volver al menú' presionado")
         self.detener_stream()
-        from Menu_Principal import Menu_Principal
-        Menu_Principal(self.page).mostrar()
+        from Pantallas.Menu_Principal import Menu_Principal
+        Menu_Principal(self.page, self.usuario, self.rol).mostrar()
 
     def detener_stream(self):
         self.stream_running = False

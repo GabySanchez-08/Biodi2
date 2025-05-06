@@ -1,8 +1,8 @@
-from Base_App import Base_App
+from Pantallas.Base_App import Base_App
 import flet as ft
 from datetime import datetime
 from fpdf import FPDF
-from firebase_config import bucket, db
+from Pantallas.firebase_config import bucket, db
 import os
 
 class Registrar_Diagnostico(Base_App):
@@ -82,5 +82,5 @@ class Registrar_Diagnostico(Base_App):
             self.page.update()
 
     def volver(self, e):
-        from Ver_Historial import Ver_Historial
+        from Pantallas.Ver_Historial import Ver_Historial
         Ver_Historial(self.page, self.usuario, self.rol).mostrar()

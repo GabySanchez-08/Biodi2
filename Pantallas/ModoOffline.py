@@ -1,6 +1,6 @@
 # === Archivo: ModoOffline.py ===
-from Base_App import Base_App
-from Menu_Offline import Menu_Offline
+from Pantallas.Base_App import Base_App
+from Pantallas.Menu_Offline import Menu_Offline
 
 class ModoOffline(Base_App):
     def mostrar(self):
@@ -11,7 +11,7 @@ class ModoOffline(Base_App):
             Menu_Offline(self.page).mostrar()
 
         def reintentar(e):
-            from ControladorConexion import ControladorConexion
+            from Pantallas.ControladorConexion import ControladorConexion
             ControladorConexion(self.page).verificar_estado()
 
         self.page.add(

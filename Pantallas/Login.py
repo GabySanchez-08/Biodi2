@@ -1,7 +1,7 @@
-from Base_App import Base_App
+from Pantallas.Base_App import Base_App
 import flet as ft
-from Menu_Principal import Menu_Principal
-from firebase_auth_config import auth
+from Pantallas.Menu_Principal import Menu_Principal
+from Pantallas.firebase_auth_config import auth
 
 class Login(Base_App):
     def mostrar(self):

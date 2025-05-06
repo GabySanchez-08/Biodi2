@@ -1,7 +1,7 @@
 # === Archivo: ControladorConexion.py ===
 import urllib.request
-from Login import Login
-from ModoOffline import ModoOffline
+from Pantallas.Login import Login
+from Pantallas.ModoOffline import ModoOffline
 
 class ControladorConexion:
     def __init__(self, page):

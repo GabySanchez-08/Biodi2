@@ -1,6 +1,9 @@
 # === Archivo: Menu_Offline.py ===
-from Base_App import Base_App
+from Pantallas.Base_App import Base_App
 import flet as ft
+import os
+from Pantallas.Capturar_Ojos import Capturar_Ojos
+from Pantallas.Capturas_Pendientes import Capturas_Pendientes
 
 class Menu_Offline(Base_App):
     def mostrar(self):
@@ -12,19 +15,15 @@ class Menu_Offline(Base_App):
         saludo = ft.Text("Modo sin conexión", size=22, weight="bold", color="orange", text_align=ft.TextAlign.CENTER)
         fecha = ft.Text(f"Fecha y hora: {fecha_actual}", size=12, color="gray", text_align=ft.TextAlign.CENTER)
 
-        # Sección Evaluación Offline
         seccion_evaluacion = ft.Column([
             ft.Text("Captura local", size=20, weight="bold", text_align=ft.TextAlign.CENTER),
-            ft.ElevatedButton("Conectar dispositivo y capturar imagen", on_click=lambda e: ft.SnackBar(ft.Text("Captura offline")).open),
+            ft.ElevatedButton("Conectar dispositivo y escanear córnea", on_click=lambda e: self.preparar_captura()),
         ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10)
 
-        # Sección Pendientes
         seccion_pendientes = ft.Column([
             ft.Text("Capturas pendientes", size=20, weight="bold", text_align=ft.TextAlign.CENTER),
-            ft.ElevatedButton("Ver capturas locales", on_click=lambda e: ft.SnackBar(ft.Text("Ver capturas pendientes")).open)
-            # Aquí no sube porque no hay conexión
+            ft.ElevatedButton("Ver capturas locales", on_click=lambda e: self.ver_pendientes())
         ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10)
-
 
         self.page.add(
             ft.Stack([
@@ -47,3 +46,11 @@ class Menu_Offline(Base_App):
             ])
         )
         self.page.update()
+
+    def preparar_captura(self):
+        for archivo in ["ojo_derecho.jpg", "ojo_izquierdo.jpg"]:
+            if os.path.exists(archivo):
+                os.remove(archivo)
+        Capturar_Ojos(self.page, self.usuario, self.rol).mostrar()
+    def ver_pendientes(self):
+         Capturas_Pendientes(self.page, self.usuario, self.rol).mostrar()

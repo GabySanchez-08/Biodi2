@@ -1,7 +1,6 @@
 # === Archivo: Main.py ===
 import flet as ft
-from Login import Login
-from ControladorConexion import ControladorConexion
+from Pantallas.ControladorConexion import ControladorConexion
 
 async def main(page: ft.Page):
     page.title = "KeratoTECH - Sistema de Escaneo Ocular"

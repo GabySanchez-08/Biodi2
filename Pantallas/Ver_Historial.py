@@ -1,7 +1,7 @@
 # === Archivo: Ver_Historial.py ===
-from Base_App import Base_App
+from Pantallas.Base_App import Base_App
 import flet as ft
-from firebase_config import db, bucket
+from Pantallas.firebase_config import db, bucket
 
 class Ver_Historial(Base_App):
     def __init__(self, page, usuario=None, rol=None):
@@ -152,7 +152,7 @@ class Ver_Historial(Base_App):
         )
 
     def abrir_dialogo_diagnostico(self, dni, fecha):
-        from Registrar_Diagnostico import Registrar_Diagnostico
+        from Pantallas.Registrar_Diagnostico import Registrar_Diagnostico
         Registrar_Diagnostico(self.page, dni, fecha, self.usuario, self.rol).mostrar()
 
     def cerrar_dialogo(self):
@@ -200,5 +200,5 @@ class Ver_Historial(Base_App):
         picker.save_file(dialog_title="Guardar archivo como", file_name=archivo_nombre)
 
     def volver_menu(self, e):
-        from Menu_Principal import Menu_Principal
+        from Pantallas.Menu_Principal import Menu_Principal
         Menu_Principal(self.page, self.usuario, self.rol).mostrar()
