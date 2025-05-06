@@ -10,9 +10,14 @@ class Ver_Historial(Base_App):
 
     def mostrar(self):
         self.limpiar()
+        self.resultado = ft.Text("", size=12, italic=True, text_align=ft.TextAlign.START)
+        self.search_input = ft.TextField(
+            label="Buscar DNI",
+            width=300,
+            on_change=self.actualizar_estado_boton_buscar
+        )
+        self.boton_buscar = ft.ElevatedButton("Buscar", on_click=self.buscar_pacientes, disabled=True)
 
-        self.search_input = ft.TextField(label="Buscar DNI", width=300)
-        self.boton_buscar = ft.ElevatedButton("Buscar", on_click=self.buscar_pacientes)
         self.boton_buscar_todos = ft.ElevatedButton("Ver todos los pacientes", on_click=self.ver_todos)
         self.lista_resultados = ft.Column(scroll=ft.ScrollMode.AUTO)
         self.titulo = ft.Text("Historial de pacientes", size=24, weight="bold")
@@ -24,7 +29,7 @@ class Ver_Historial(Base_App):
                         ft.TextButton("← Volver al menú", on_click=self.volver_menu),
                         self.cargar_logo(),
                         self.titulo,
-                        ft.Row([self.search_input, self.boton_buscar, self.boton_buscar_todos]),
+                        ft.Row([self.search_input, self.boton_buscar, self.boton_buscar_todos, self.resultado]),
                         self.lista_resultados
                     ],
                     spacing=20,
@@ -41,10 +46,20 @@ class Ver_Historial(Base_App):
         self.obtener_dnis()
         self.mostrando_todos = False
 
+    def actualizar_estado_boton_buscar(self, e):
+        self.boton_buscar.disabled = not bool(self.search_input.value.strip())
+        self.page.update()
+
     def obtener_dnis(self):
         self.todos_pacientes = [doc.id for doc in db.collection("pacientes").list_documents()]
 
     def buscar_pacientes(self, e=None):
+                # Mostrar ruedita de carga
+        self.resultado.value = "Buscando..."
+        self.resultado.color = "grey"
+        self.boton_buscar_todos.disabled = True
+        self.boton_buscar.disabled = True
+        self.page.update()
         filtro = self.search_input.value.strip()
         if not filtro:
             return
@@ -54,15 +69,29 @@ class Ver_Historial(Base_App):
         for dni in self.todos_pacientes:
             if dni.startswith(filtro):
                 self.lista_resultados.controls.append(self.crear_fila_paciente(dni))
+        self.boton_buscar.disabled = False
+        self.boton_buscar_todos.disabled = False
+        self.resultado.value = ""
         self.page.update()
 
     def ver_todos(self, e=None):
         if self.mostrando_todos:
             return
+
+        self.resultado.value = "Cargando todos..."
+        self.resultado.color = "grey"
+        self.boton_buscar_todos.disabled = True
+        self.boton_buscar.disabled = True
+        self.page.update()  # 👈 Se actualiza antes de empezar a cargar datos
+
         self.mostrando_todos = True
         self.lista_resultados.controls.clear()
         for dni in self.todos_pacientes:
             self.lista_resultados.controls.append(self.crear_fila_paciente(dni))
+
+        self.boton_buscar_todos.disabled = False
+        self.boton_buscar.disabled = not bool(self.search_input.value.strip())
+        self.resultado.value = ""
         self.page.update()
 
     def crear_fila_paciente(self, dni):

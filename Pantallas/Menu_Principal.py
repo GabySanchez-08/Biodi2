@@ -3,6 +3,7 @@ import flet as ft
 import os
 from Formulario_subida import Formulario_Subida
 from Ver_Historial import Ver_Historial
+from Guia_Uso import Guia_Uso
 
 class Menu_Principal(Base_App):
 
@@ -51,7 +52,9 @@ class Menu_Principal(Base_App):
         botones_historial = [
             ft.ElevatedButton("Ver historial de pacientes", on_click=lambda e: Ver_Historial(self.page, usuario=self.usuario, rol=self.rol).mostrar())
         ]
-
+        boton_guia = [
+            ft.ElevatedButton("Guía de Uso", on_click=lambda e: Guia_Uso(self.page, usuario=self.usuario, rol=self.rol).mostrar())
+        ]
         # Sección Evaluación
         seccion_evaluacion = ft.Column([
             ft.Text("Evaluación", size=20, weight="bold"),
@@ -73,7 +76,7 @@ class Menu_Principal(Base_App):
         # Sección Opcional
         seccion_opciones = ft.Column([
             ft.Text("Opciones", size=20, weight="bold"),
-            ft.ElevatedButton("Guía rápida de uso", on_click=lambda e: ft.SnackBar(ft.Text("Guía")).open)
+            *boton_guia
         ], spacing=10, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
 
         self.page.add(
