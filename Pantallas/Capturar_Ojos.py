@@ -19,7 +19,7 @@ class Capturar_Ojos(Base_App):
         self.camera_index = 0
         self.available_cameras = self.detectar_camaras()
 
-        self.imagen_preview = ft.Image(width=400, height=400, fit=ft.ImageFit.CONTAIN)
+        self.imagen_preview = ft.Image(width=1200, height=800, fit=ft.ImageFit.CONTAIN)
         self.titulo_ojos = ft.Text("Capturando ojo derecho", size=20, weight="bold")
         self.estado = ft.Text("Imagen actual del ojo derecho", size=16, weight="bold")
 
