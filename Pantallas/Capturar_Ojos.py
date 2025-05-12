@@ -29,6 +29,13 @@ class Capturar_Ojos(Base_App):
             value=str(self.camera_index),
             on_change=self.cambiar_camara
         )
+        self.zoom_slider = ft.Slider(
+            min=0, max=10, divisions=10, label="Zoom", on_change=self.cambiar_zoom, value=0
+        )
+        self.focus_slider = ft.Slider(
+            min=0, max=255, divisions=255, label="Enfoque", on_change=self.cambiar_enfoque, value=0
+        )
+
 
         self.capturar_btn = ft.ElevatedButton("Capturar", on_click=self.capturar)
         self.borrar_btn = ft.ElevatedButton("Borrar", on_click=self.borrar, disabled=True)
@@ -52,6 +59,8 @@ class Capturar_Ojos(Base_App):
                         self.titulo_ojos,
                         self.dropdown_camaras,
                         self.imagen_preview,
+                        self.zoom_slider,
+                        self.focus_slider,
                         self.estado,
                         self.botones
                     ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
@@ -127,6 +136,19 @@ class Capturar_Ojos(Base_App):
         self.continuar_btn.disabled = not (os.path.exists("ojo_derecho.jpg") or os.path.exists("ojo_izquierdo.jpg"))
         self.actualizar_textos()
         self.page.update()
+    
+    def cambiar_zoom(self, e):
+        if hasattr(self, 'cap') and self.cap.isOpened():
+            nivel_zoom = self.zoom_slider.value
+            if not self.cap.set(cv2.CAP_PROP_ZOOM, nivel_zoom):
+                print("[ERROR] No se pudo cambiar el zoom (propiedad no soportada)")
+
+    def cambiar_enfoque(self, e):
+        if hasattr(self, 'cap') and self.cap.isOpened():
+            nivel_enfoque = self.focus_slider.value
+            if not self.cap.set(cv2.CAP_PROP_FOCUS, nivel_enfoque):
+                print("[ERROR] No se pudo cambiar el enfoque (propiedad no soportada)")
+
 
     def cambiar_ojo(self, e):
         self.escaneando_derecho = not self.escaneando_derecho
