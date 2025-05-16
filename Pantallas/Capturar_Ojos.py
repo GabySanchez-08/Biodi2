@@ -19,7 +19,7 @@ class Capturar_Ojos(Base_App):
         self.camera_index = 0
         self.available_cameras = self.detectar_camaras()
 
-        self.imagen_preview = ft.Image(width=1200, height=800, fit=ft.ImageFit.CONTAIN)
+        self.imagen_preview = ft.Image(width=1200, height=700, fit=ft.ImageFit.CONTAIN)
         self.titulo_ojos = ft.Text("Capturando ojo derecho", size=20, weight="bold")
         self.estado = ft.Text("Imagen actual del ojo derecho", size=16, weight="bold")
 
@@ -30,12 +30,24 @@ class Capturar_Ojos(Base_App):
             on_change=self.cambiar_camara
         )
         self.zoom_slider = ft.Slider(
-            min=0, max=10, divisions=10, label="Zoom", on_change=self.cambiar_zoom, value=0
-        )
-        self.focus_slider = ft.Slider(
-            min=0, max=255, divisions=255, label="Enfoque", on_change=self.cambiar_enfoque, value=0
+            min=100,
+            max=120,
+            divisions=1,
+            label="Zoom",
+            on_change=self.cambiar_zoom,
+            value=100,
+            width=1200
         )
 
+        self.focus_slider = ft.Slider(
+            min=0,
+            max=255,
+            divisions=20,
+            label="Enfoque",
+            on_change=self.cambiar_enfoque,
+            value=0,
+            width=1200
+        )
 
         self.capturar_btn = ft.ElevatedButton("Capturar", on_click=self.capturar)
         self.borrar_btn = ft.ElevatedButton("Borrar", on_click=self.borrar, disabled=True)
@@ -86,6 +98,8 @@ class Capturar_Ojos(Base_App):
         if hasattr(self, 'cap') and self.cap.isOpened():
             self.cap.release()
         self.cap = cv2.VideoCapture(self.camera_index)
+
+        print("Soporte de zoom: ", self.cap.get(cv2.CAP_PROP_ZOOM))
         self.stream_running = True
         self.page.run_task(self.actualizar_stream)
 

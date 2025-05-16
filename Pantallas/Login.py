@@ -1,14 +1,17 @@
+## ---- Login.py
 from Pantallas.Base_App import Base_App
 import flet as ft
 from Pantallas.Menu_Principal import Menu_Principal
 from Pantallas.firebase_auth_config import auth
+from firebase_admin import firestore
 
 class Login(Base_App):
     def mostrar(self):
         self.limpiar()
         logo = self.cargar_logo()
 
-        user_input = ft.TextField(label="Usuario", autofocus=True, width=400)
+        # Cambiado: ahora se ingresa el correo directamente
+        user_input = ft.TextField(label="Correo", autofocus=True, width=400)
         pass_input = ft.TextField(label="Contraseña", password=True, can_reveal_password=True, width=400)
         mensaje = ft.Text("", size=14)
 
@@ -20,44 +23,60 @@ class Login(Base_App):
         )
 
         def mostrar_ayuda(e):
-            ayuda_mensaje.content.value = "Por el momento no se pueden recuperar contraseñas desde nuestra app. Por favor, contáctese con la institución a la que pertenece."
+            ayuda_mensaje.content.value = (
+                "Por el momento no se pueden recuperar contraseñas desde nuestra app. "
+                "Por favor, contáctese con la institución a la que pertenece."
+            )
             self.page.update()
 
         def validar_credenciales(e=None):
-            usuario = user_input.value.strip()
+            entrada_usuario = user_input.value.strip().lower()
             contraseña = pass_input.value.strip()
 
-            if not usuario or not contraseña:
+            if not entrada_usuario or not contraseña:
                 mensaje.value = "Completa todos los campos"
                 mensaje.color = "red"
                 self.page.update()
                 return
 
-            correo = f"{usuario.lower()}@keratotech.com"
+            # Autocompletar dominio si no se incluye
+            if "@" not in entrada_usuario:
+                correo = f"{entrada_usuario}@gmail.com"
+            else:
+                correo = entrada_usuario
 
             try:
                 user = auth.sign_in_with_email_and_password(correo, contraseña)
-                if usuario.upper().startswith("TEC"):
-                    rol = "TEC"
-                elif usuario.upper().startswith("MED"):
-                    rol = "MED"
-                else:
-                    mensaje.value = "Usuario no reconocido como TEC o MED"
+                doc_id = correo.split("@")[0].lower()
+
+                db = firestore.client()
+                doc = db.collection("usuarios").document(doc_id).get()
+
+                if not doc.exists:
+                    mensaje.value = "Usuario no registrado en la base de datos"
                     mensaje.color = "red"
                     self.page.update()
                     return
 
-                Menu_Principal(self.page, usuario=usuario.upper(), rol=rol).mostrar()
+                data = doc.to_dict()
+                rol = data.get("rol")
+
+                if rol not in ["MED", "TEC"]:
+                    mensaje.value = "Rol no reconocido"
+                    mensaje.color = "red"
+                    self.page.update()
+                    return
+
+                Menu_Principal(self.page, usuario=doc_id, rol=rol).mostrar()
 
             except Exception as err:
                 mensaje.value = "Credenciales inválidas"
                 mensaje.color = "red"
-                print(f"Error: {err}")
+                print(f"[ERROR] {err}")
                 self.page.update()
 
-        # Cambios clave aquí
         def enfocar_contraseña(e):
-            pass_input.focus()  # ✅ Enfoca directamente el campo de contraseña
+            pass_input.focus()
             self.page.update()
 
         user_input.on_submit = enfocar_contraseña

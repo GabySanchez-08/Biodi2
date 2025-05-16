@@ -1,3 +1,5 @@
+# === Archivo: Menu_Principal.py ===
+
 from Pantallas.Base_App import Base_App
 import flet as ft
 import os
@@ -5,17 +7,45 @@ from Pantallas.Formulario_subida import Formulario_Subida
 from Pantallas.Ver_Historial import Ver_Historial
 from Pantallas.Guia_Uso import Guia_Uso
 from Pantallas.Capturas_Pendientes import Capturas_Pendientes
+from Pantallas.firebase_config import db
+from datetime import datetime
 
 class Menu_Principal(Base_App):
 
     def mostrar(self):
         self.limpiar()
         logo = self.cargar_logo()
-        from datetime import datetime
+
         fecha_actual = datetime.now().strftime("%d/%m/%Y %H:%M")
 
-        saludo = ft.Text(f"Bienvenido, {'Especialista' if self.rol == 'MED' else 'Técnico'}", size=22, weight="bold")
+        # === Obtener datos del usuario desde Firestore ===
+        try:
+            doc = db.collection("usuarios").document(self.usuario.lower()).get()
+            datos = doc.to_dict() if doc.exists else {}
+        except Exception as e:
+            print(f"[ERROR] No se pudo cargar perfil en menú: {e}")
+            datos = {}
+
+        nombre = datos.get("nombre", "")
+        apellido = datos.get("apellido", "")
+        rol = datos.get("rol", "")
+        sexo = datos.get("sexo", "M").upper()
+
+        # === Construcción personalizada del saludo ===
+        saludo_genero = "Bienvenido" if sexo == "M" else "Bienvenida"
+        
+        if rol == "MED":
+            titulo = "Dr." if sexo == "M" else "Dra."
+        elif rol == "TEC":
+            titulo = "Técnico" if sexo == "M" else "Técnica"
+        else:
+            titulo = ""
+
+        saludo_texto = f"{saludo_genero}, {titulo} {nombre} {apellido}".strip()
+
+        saludo = ft.Text(saludo_texto, size=22, weight="bold")
         fecha = ft.Text(f"Fecha y hora: {fecha_actual}", size=12, color="gray")
+       
 
         # Header fijo
         header = ft.Container(
@@ -94,7 +124,7 @@ class Menu_Principal(Base_App):
                 seccion_historial,
                 ft.Divider(),
                 seccion_opciones
-            ], spacing=25, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
+            ], spacing=20, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
         )
         self.page.update()
 
@@ -103,7 +133,8 @@ class Menu_Principal(Base_App):
         Login(self.page).mostrar()
 
     def ver_perfil(self, e):
-        ft.SnackBar(ft.Text("Mi perfil (en construcción)")).open
+        from Pantallas.Ver_Perfil import Ver_Perfil
+        Ver_Perfil(self.page, self.usuario, self.rol).mostrar()
 
     def preparar_captura(self):
         for archivo in ["ojo_derecho.jpg", "ojo_izquierdo.jpg"]:
