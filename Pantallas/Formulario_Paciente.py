@@ -16,7 +16,6 @@ from Pantallas.Generar_Reporte import generar_reporte_pdf
 class Formulario_Paciente(Base_App):
     def __init__(self, page, usuario=None, rol=None):
         super().__init__(page, usuario, rol)
-        
         if self.hay_conexion():
             self.modo_online = True
         else:
@@ -39,31 +38,28 @@ class Formulario_Paciente(Base_App):
         self.capturas_label = ft.Text(self.detectar_capturas(), size=16, color="blue")
 
         self.enviar_btn = ft.ElevatedButton("Guardar y Enviar", on_click=self.guardar_todo, bgcolor="green")
-        self.boton_volver = ft.Container(
-            content=ft.TextButton("← Volver a captura", on_click=self.volver_atras),
-            alignment=ft.alignment.top_left,
-            padding=10
-        )
 
         self.page.add(
-            ft.Stack([
-                self.boton_volver,
-                ft.Container(
-                    ft.Column([
-                        self.cargar_logo(),
-                        ft.Text("Formulario de paciente", size=24, weight="bold"),
-                        self.capturas_label,
-                        self.nombre, self.dni, self.edad, self.sexo, self.observaciones,
-                        self.enviar_btn,
-                        self.resultado
-                    ],
-                    alignment=ft.MainAxisAlignment.CENTER,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=20),
-                    alignment=ft.alignment.center,
-                    expand=True
-                )
-            ])
+            ft.Container(
+                ft.Column([
+                    ft.Container(
+                        content=ft.TextButton("← Volver a captura", on_click=self.volver_atras),
+                        alignment=ft.alignment.center,
+                        padding=10
+                    ),
+                    self.cargar_logo(),
+                    ft.Text("Formulario de paciente", size=24, weight="bold"),
+                    self.capturas_label,
+                    self.nombre, self.dni, self.edad, self.sexo, self.observaciones,
+                    self.enviar_btn,
+                    self.resultado
+                ],
+                alignment=ft.MainAxisAlignment.START,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=20),
+                alignment=ft.alignment.top_center,
+                expand=True
+            )
         )
         self.page.update()
 
@@ -73,7 +69,6 @@ class Formulario_Paciente(Base_App):
             return True
         except:
             return False
-
 
     def detectar_capturas(self):
         od = os.path.exists("ojo_derecho.jpg")
@@ -130,8 +125,8 @@ class Formulario_Paciente(Base_App):
                 datos[f"url_ojo_{ojo}"] = blob.public_url
 
         db.collection("pacientes").document(self.dni.value).collection("registros").document(fecha).set(datos)
-        generar_reporte_pdf(datos) #generar y subir reporte
-    
+        generar_reporte_pdf(datos)
+
     def guardar_offline(self, datos, fecha):
         ruta_base = f"capturas_pendientes/{self.dni.value}_{fecha}"
         os.makedirs(ruta_base, exist_ok=True)
@@ -149,7 +144,7 @@ class Formulario_Paciente(Base_App):
 
         # Generar reporte en la misma carpeta
         generar_reporte_pdf(datos, ruta_salida=os.path.join(ruta_base, f"{self.dni.value}_{fecha}_reporte.pdf"))
-        
+
     def eliminar_imagenes_locales(self):
         for archivo in ["ojo_derecho.jpg", "ojo_izquierdo.jpg"]:
             if os.path.exists(archivo):
@@ -179,7 +174,7 @@ class Formulario_Paciente(Base_App):
 
     def volver_atras(self, e):
         from Pantallas.Capturar_Ojos import Capturar_Ojos
-        Capturar_Ojos(self.page, usuario=self.usuario, rol=self.rol).mostrar()
+        Capturar_Ojos(self.page, self.usuario,self.rol).mostrar()
 
     def volver_menu(self, e):
         if self.modo_online:
@@ -188,4 +183,3 @@ class Formulario_Paciente(Base_App):
         else:
             from Pantallas.Menu_Offline import Menu_Offline
             Menu_Offline(self.page).mostrar()
-        
