@@ -50,25 +50,38 @@ class Ver_Historial(Base_App):
         self.boton_buscar.disabled = not bool(self.search_input.value.strip())
         self.page.update()
 
+ 
     def obtener_dnis(self):
-        self.todos_pacientes = [doc.id for doc in db.collection("pacientes").list_documents()]
+        try:
+            docs = db.collection("pacientes_base").stream()
+            self.todos_pacientes = []
+            for doc in docs:
+                data = doc.to_dict()
+                nombre = data.get("nombre", "")
+                apellido = data.get("apellido", "")
+                self.todos_pacientes.append({
+                    "dni": doc.id,
+                    "nombre_completo": f"{nombre} {apellido}".strip()
+                })
+        except Exception as err:
+            print(f"[ERROR] No se pudo cargar pacientes_base: {err}")
+            self.todos_pacientes = []
 
     def buscar_pacientes(self, e=None):
-                # Mostrar ruedita de carga
         self.resultado.value = "Buscando..."
         self.resultado.color = "grey"
         self.boton_buscar_todos.disabled = True
         self.boton_buscar.disabled = True
         self.page.update()
-        filtro = self.search_input.value.strip()
-        if not filtro:
-            return
 
+        filtro = self.search_input.value.strip()
         self.mostrando_todos = False
         self.lista_resultados.controls.clear()
-        for dni in self.todos_pacientes:
-            if dni.startswith(filtro):
-                self.lista_resultados.controls.append(self.crear_fila_paciente(dni))
+
+        for paciente in self.todos_pacientes:
+            if paciente["dni"].startswith(filtro):
+                self.lista_resultados.controls.append(self.crear_fila_paciente(paciente))
+
         self.boton_buscar.disabled = False
         self.boton_buscar_todos.disabled = False
         self.resultado.value = ""
@@ -82,21 +95,29 @@ class Ver_Historial(Base_App):
         self.resultado.color = "grey"
         self.boton_buscar_todos.disabled = True
         self.boton_buscar.disabled = True
-        self.page.update()  # 👈 Se actualiza antes de empezar a cargar datos
+        self.page.update()
 
         self.mostrando_todos = True
         self.lista_resultados.controls.clear()
-        for dni in self.todos_pacientes:
-            self.lista_resultados.controls.append(self.crear_fila_paciente(dni))
+
+        for paciente in self.todos_pacientes:
+            self.lista_resultados.controls.append(self.crear_fila_paciente(paciente))
 
         self.boton_buscar_todos.disabled = False
         self.boton_buscar.disabled = not bool(self.search_input.value.strip())
         self.resultado.value = ""
         self.page.update()
 
-    def crear_fila_paciente(self, dni):
-        registros = db.collection("pacientes").document(dni).collection("registros").stream()
-        registros_ordenados = sorted(registros, key=lambda d: d.id, reverse=True)
+
+    def crear_fila_paciente(self, paciente):
+        dni = paciente["dni"]
+        nombre_completo = paciente["nombre_completo"]
+        try:
+            registros = db.collection("pacientes").document(dni).collection("registros").stream()
+            registros_ordenados = sorted(registros, key=lambda d: d.id, reverse=True)
+        except Exception as err:
+            print(f"[ERROR] No se pudo leer registros de {dni}: {err}")
+            registros_ordenados = []
 
         filas = []
         for registro in registros_ordenados:
@@ -142,7 +163,7 @@ class Ver_Historial(Base_App):
 
         return ft.Container(
             ft.Column([
-                ft.Text(f"DNI: {dni}", size=18, weight="bold"),
+                ft.Text(f"DNI: {dni} - {nombre_completo}", size=18, weight="bold"),
                 *filas
             ],
             spacing=10),
@@ -150,7 +171,7 @@ class Ver_Historial(Base_App):
             padding=10,
             margin=10
         )
-
+    
     def abrir_dialogo_diagnostico(self, dni, fecha):
         from Pantallas.Registrar_Diagnostico import Registrar_Diagnostico
         Registrar_Diagnostico(self.page, dni, fecha, self.usuario, self.rol).mostrar()

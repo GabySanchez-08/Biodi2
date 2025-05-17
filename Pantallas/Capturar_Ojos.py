@@ -137,7 +137,7 @@ class Capturar_Ojos(Base_App):
                 frame = frame[start_y:start_y+crop_h, start_x:start_x+crop_w]
 
                 kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-                frame = cv2.filter2D(frame, -1, kernel)
+                #frame = cv2.filter2D(frame, -1, kernel)
 
                 height, width, _ = frame.shape
                 cx, cy = width // 2, height // 2
@@ -163,7 +163,7 @@ class Capturar_Ojos(Base_App):
                 frame = frame[start_y:start_y+crop_h, start_x:start_x+crop_w]
 
                 kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-                frame = cv2.filter2D(frame, -1, kernel)
+                #frame = cv2.filter2D(frame, -1, kernel)
 
                 filename = "ojo_derecho.jpg" if self.escaneando_derecho else "ojo_izquierdo.jpg"
                 cv2.imwrite(filename, frame)
