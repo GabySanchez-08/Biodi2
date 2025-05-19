@@ -8,6 +8,7 @@ async def main(page: ft.Page):
     page.bgcolor = ft.Colors.BLUE_50  # Fondo azul claro profesional
 
     # Establece el tema con semilla de color azul oscuro
+    page.theme_mode = ft.ThemeMode.LIGHT
     page.theme = ft.Theme(color_scheme_seed=ft.Colors.BLUE_900)
 
     # Verificar conexión y cargar vista inicial

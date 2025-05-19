@@ -11,7 +11,7 @@ class Login(Base_App):
         logo = self.cargar_logo()
 
         # Cambiado: ahora se ingresa el correo directamente
-        user_input = ft.TextField(label="Correo", autofocus=True, width=400)
+        user_input = ft.TextField(label="Usuario", autofocus=True, width=400)
         pass_input = ft.TextField(label="Contraseña", password=True, can_reveal_password=True, width=400)
         mensaje = ft.Text("", size=14)
 
