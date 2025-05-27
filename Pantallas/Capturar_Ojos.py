@@ -63,7 +63,7 @@ class Capturar_Ojos(Base_App):
         )
 
         self.focus_slider = ft.Slider(
-            min=0, max=255, divisions=20,
+            min=0, max=200, divisions=20,
             label="Enfoque",
             on_change=self.cambiar_enfoque,
             value=0,
@@ -134,13 +134,11 @@ class Capturar_Ojos(Base_App):
             self.cap = cv2.VideoCapture(self.camera_index, cv2.CAP_AVFOUNDATION)  # AVFoundation
         else:
             self.cap = cv2.VideoCapture(self.camera_index)  # Linux o fallback
-
-        ret, _ = self.cap.read()
-        if ret:
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-            # Establecer resolución alta (Full HD)
-
+   
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        # Establecer resolución alta (Full HD)
+        
 
         # Confirmar si la resolución fue aceptada
         actual_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
@@ -157,8 +155,10 @@ class Capturar_Ojos(Base_App):
     async def actualizar_stream(self):
         lado = 24
         while self.stream_running:
+            #print("whileok")
             ret, frame = self.cap.read()
             if ret and not self.captura_realizada:
+                #print("entro al if de ret")
                 h, w, _ = frame.shape
                 crop_h = int(h * 0.7)
                 crop_w = int(w * 0.7)
@@ -168,8 +168,13 @@ class Capturar_Ojos(Base_App):
                 frame_mostrar = frame_crop.copy()  # copia solo para mostrar
 
                 resultado = self.detectar_patron_e_iris(frame_crop)
+                #resultado = 0
+
                 if resultado:
+                    print("entro al if de resultado")
                     cx_patron, cy_patron, r_patron, cx_iris, cy_iris, r_iris, roi_img, (x1, y1, x2, y2) = resultado
+                    # Ajustar coordenadas al sistema de frame_crop si este proviene de un recorte
+                    
 
                     # === Dibujo SOLO en frame_mostrar ===
                     # Marco rojo de ROI
@@ -194,11 +199,11 @@ class Capturar_Ojos(Base_App):
                         print("🟢 Estable y alineado. Capturando automáticamente...")
                         nombre_archivo = "ojo_derecho.jpg" if self.escaneando_derecho else "ojo_izquierdo.jpg"
                         cv2.imwrite(nombre_archivo, roi_img)
-                        self.procesar_post_captura(roi_img)
+                        self.procesar_post_captura2(roi_img)
                         self.mostrar_mensaje_exito("¡Captura realizada automáticamente!")
                         break
-                    else:
-                        print(f"🔶 Desalineado o inestable. Δ={delta:.2f}")
+                    #else:
+                        #print(f"🔶 Desalineado o inestable. Δ={delta:.2f}")
                 # Líneas guía fijas
                 height, width, _ = frame_crop.shape
                 cx_fixed, cy_fixed = width // 2, height // 2
@@ -304,18 +309,39 @@ class Capturar_Ojos(Base_App):
         self.focus_slider.visible = False
         self.page.update()
 
+    def procesar_post_captura2(self, frame):
+        self.imagen_original = frame.copy()
 
-  
+        # Forzar ajuste visual correcto
+        frame_resized = cv2.resize(frame, (700, 700), interpolation=cv2.INTER_LINEAR)
+        _, buf = cv2.imencode(".jpg", frame_resized)
+        img_base64 = buf.tobytes()
+        self.imagen_preview.src_base64 = base64.b64encode(img_base64).decode("utf-8")
+
+        self.captura_realizada = True
+        self.zoom_slider_preview.visible = True
+        self.actualizar_textos()
+        self.borrar_btn.disabled = False
+        self.capturar_btn.disabled = True
+        self.continuar_btn.disabled = False
+        self.zoom_slider.visible = False
+        self.focus_slider.visible = False
+        self.page.update()
 
     def cambiar_zoom(self, e):
         if hasattr(self, 'cap') and self.cap.isOpened():
             if not self.cap.set(cv2.CAP_PROP_ZOOM, self.zoom_slider.value):
                 print("[ERROR] No se pudo cambiar el zoom")
+            valor_actual = self.cap.get(cv2.CAP_PROP_ZOOM)
+            print(f"[INFO] Zoom actual: {valor_actual}")
 
     def cambiar_enfoque(self, e):
         if hasattr(self, 'cap') and self.cap.isOpened():
             if not self.cap.set(cv2.CAP_PROP_FOCUS, self.focus_slider.value):
                 print("[ERROR] No se pudo cambiar el enfoque")
+            valor_actual = self.cap.get(cv2.CAP_PROP_FOCUS)
+            print(f"[INFO] Enfoque actual: {valor_actual}")
+
 
     def zoom_muestra_changed(self, e):
         self.zoom_muestra = e.control.value
@@ -382,141 +408,70 @@ class Capturar_Ojos(Base_App):
         self.titulo_ojos.value = f"Capturando ojo {ojo}"
         self.estado.value = f"Imagen actual del ojo {ojo}"
 
+    def detectar_patron_e_iris(self, frame, niveles_gris=16, umbral_bin=60):
+        if frame is None or not isinstance(frame, np.ndarray) or frame.size == 0:
+            print("no llega imagen")
+            return None
 
-    def detectar_pupila(self, frame):
-        # === Paso 1: extraer canal verde ===
-        green = frame[:, :, 1]
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray_blur = cv2.GaussianBlur(gray, (7, 7), 1.5)
+        _, binarizada = cv2.threshold(gray_blur, 50, 255, cv2.THRESH_BINARY_INV)
 
-        # === Paso 2: desenfocar para eliminar ruido de pestañas ===
-        blurred = cv2.GaussianBlur(green, (7, 7), 1.5)
+        contornos, _ = cv2.findContours(binarizada, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        # === Paso 3: binarización con umbral fijo sobre canal verde ===
-        _, thresh = cv2.threshold(blurred, 95, 255, cv2.THRESH_BINARY_INV)
+        for cnt in contornos:
+            (x, y), radius = cv2.minEnclosingCircle(cnt)
+            if 100 <= radius <= 160:
+                print("✅ Radio en rango para iris.")
+                center = (int(x), int(y))
+                radius = int(radius)
+                print(radius)
+                mask = np.zeros_like(gray)
+                cv2.drawContours(mask, [cnt], -1, 255, -1)
+                media = cv2.mean(gray, mask=mask)[0]
+                if media < 80:
+                    print("🟢 Iris validado por oscuridad.")
+                    print("iris ok")
+                    # Detección de patrón dentro del iris
+                    green = frame[:, :, 1]
+                    roi_mask = np.zeros_like(gray)
+                    cv2.circle(roi_mask, center, radius, 255, -1)
+                    green_eq = cv2.equalizeHist(green)
+                    green_blur = cv2.GaussianBlur(green_eq, (5, 5), 1.0)
+                    binary_green = cv2.adaptiveThreshold(green_blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+                                                        cv2.THRESH_BINARY_INV, 11, 5)
+                    puntos_bin = cv2.bitwise_and(binary_green, binary_green, mask=roi_mask)
+                    puntos_contornos, _ = cv2.findContours(puntos_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    print(f"🔬 Puntos candidatos en ROI: {len(puntos_contornos)}")
 
-        # === Paso 4: limpieza morfológica ===
-        kernel = np.ones((3, 3), np.uint8)
-        thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+                    puntos = []
+                    for pc in puntos_contornos:
+                        area = cv2.contourArea(pc)
+                        if 4 < area < 120:
+                            M = cv2.moments(pc)
+                            if M["m00"] != 0:
+                                cx = int(M["m10"] / M["m00"])
+                                cy = int(M["m01"] / M["m00"])
+                                #print("interesante")
+                                if cv2.pointPolygonTest(cnt, (cx, cy), False) >= 0:
+                                    puntos.append((cx, cy))
+                    print(len(puntos))
+                    if len(puntos) >= 40:
+                        puntos_np = np.array(puntos)
+                        (x_p, y_p), r_p = cv2.minEnclosingCircle(puntos_np)
 
-        # === Paso 5: detectar contornos ===
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                        # Recorte ROI de la zona alrededor de la pupila
+                        x1 = max(center[0] - radius, 0)
+                        y1 = max(center[1] - radius, 0)
+                        x2 = min(center[0] + radius, frame.shape[1])
+                        y2 = min(center[1] + radius, frame.shape[0])
+                        roi_img = frame[y1:y2, x1:x2]
+                        coords_roi = (x1, y1, x2, y2)
 
-        candidatos = []
-        for cnt in contours:
-            area = cv2.contourArea(cnt)
-            if 200 < area < 3000:
-                x, y, w, h = cv2.boundingRect(cnt)
-                aspecto = w / h
-                circularidad = (4 * np.pi * area) / (cv2.arcLength(cnt, True) ** 2 + 1e-5)
-
-                if 0.8 < aspecto < 1.2 and circularidad > 0.6:
-                    cx = x + w // 2
-                    cy = y + h // 2
-                    candidatos.append((circularidad, cx, cy))
-
-        if candidatos:
-            mejores = sorted(candidatos, reverse=True)
-            return (mejores[0][1], mejores[0][2])
+                        return (int(x_p), int(y_p), int(r_p), center[0], center[1], radius, roi_img, coords_roi)
 
         return None
-    
-    def ojo_esta_centrado(self, cx, cy, frame_shape, tolerancia=30):
-        h, w = frame_shape[:2]
-        return abs(cx - w // 2) < tolerancia and abs(cy - h // 2) < tolerancia
-    def detectar_y_guardar_si_alineado(self, frame):
-        resultado = self.detectar_patron_e_iris(frame)
-        if resultado is None:
-            return False
-
-        cx_patron, cy_patron, r_patron, cx_iris, cy_iris, r_iris, roi_cuadro = resultado
-
-        # Verificar alineación entre centro del patrón y centro del iris
-        delta = np.sqrt((cx_patron - cx_iris)**2 + (cy_patron - cy_iris)**2)
-        if delta < 20:  # puedes ajustar esta tolerancia
-            nombre_archivo = "ojo_derecho.jpg" if self.escaneando_derecho else "ojo_izquierdo.jpg"
-            cv2.imwrite(nombre_archivo, roi_cuadro)
-            self.procesar_post_captura(roi_cuadro)
-            self.mostrar_mensaje_exito("¡Captura realizada automáticamente!")
-            return True
-
-        return False
-    
-    def detectar_patron_e_iris(self, frame, niveles_gris=16, umbral_bin=60):
-        """
-        Detecta patrón de puntos y el iris en la imagen del ojo.
-        Devuelve centros, radios y la ROI recortada solo si ambos son detectados.
-        """
-        if frame is None or not isinstance(frame, np.ndarray) or frame.size == 0:
-            return None
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        gray_eq = cv2.equalizeHist(gray)
-        factor = 256 // niveles_gris
-        gray_reducida = (gray_eq // factor) * factor
-
-        # Detección de patrón en canal verde
-        green = frame[:, :, 1]
-        blur = cv2.GaussianBlur(green, (5, 5), 1.0)
-        _, binary = cv2.threshold(blur, umbral_bin, 255, cv2.THRESH_BINARY_INV)
-        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        puntos = []
-        for c in contours:
-            area = cv2.contourArea(c)
-            if 5 < area < 80:
-                M = cv2.moments(c)
-                if M["m00"] != 0:
-                    cx = int(M["m10"] / M["m00"])
-                    cy = int(M["m01"] / M["m00"])
-                    puntos.append((cx, cy))
-
-        if not puntos:
-            return None
-
-        # Centro y radio del patrón
-        xs, ys = zip(*puntos)
-        cx_patron = int(np.mean(xs))
-        cy_patron = int(np.mean(ys))
-        radios = [np.sqrt((x - cx_patron)**2 + (y - cy_patron)**2) for (x, y) in puntos]
-        r_patron = int(np.mean(radios))
-
-        # ROI alrededor del patrón
-        roi_r = int(1.5 * r_patron)
-        h, w = gray.shape
-        x1 = max(cx_patron - roi_r, 0)
-        y1 = max(cy_patron - roi_r, 0)
-        x2 = min(cx_patron + roi_r, w)
-        y2 = min(cy_patron + roi_r, h)
-        roi = gray_reducida[y1:y2, x1:x2]
-
-        # Detección del iris en ROI
-        _, mask = cv2.threshold(roi, 60, 255, cv2.THRESH_BINARY_INV)
-        contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        mejor_contorno = None
-        mejor_radio = 0
-        cx_iris, cy_iris = None, None
-
-        for c in contornos:
-            area = cv2.contourArea(c)
-            if area > 300:
-                (x, y), radius = cv2.minEnclosingCircle(c)
-                circularidad = 4 * np.pi * area / (cv2.arcLength(c, True) ** 2 + 1e-6)
-                if 0.4 < circularidad < 1.2 and radius > mejor_radio:
-                    mejor_contorno = c
-                    mejor_radio = radius
-                    cx_iris, cy_iris = int(x), int(y)
-
-        if mejor_contorno is None:
-            return None
-
-        # Coordenadas absolutas
-        cx_iris += x1
-        cy_iris += y1
-        r_iris = int(mejor_radio)
-        roi_cuadro = frame[y1:y2, x1:x2]
-        coords_roi = (x1, y1, x2, y2)
-
-        return (cx_patron, cy_patron, r_patron, cx_iris, cy_iris, r_iris, roi_cuadro, coords_roi)
-    
+        
     def activar_captura_automatica(self, e):
         self.auto_captura_activada = True
         self.activar_auto_btn.disabled = True
