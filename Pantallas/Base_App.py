@@ -1,3 +1,5 @@
+import flet as ft
+
 class Base_App:
     logo_precalculado = None
 
@@ -27,3 +29,4 @@ class Base_App:
                 return ft.Image(src_base64=img_base64, width=ancho)
 
         return ft.Text("KERATO TECH", size=24, weight="bold")
+    

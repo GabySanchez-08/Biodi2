@@ -95,7 +95,8 @@ class Login(Base_App):
         ],
         alignment=ft.MainAxisAlignment.CENTER,
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        spacing=20)
+        spacing=15)
 
         self.page.add(ft.Container(content=login_layout, alignment=ft.alignment.center, expand=True))
         self.page.update()
+

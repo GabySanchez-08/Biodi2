@@ -408,70 +408,96 @@ class Capturar_Ojos(Base_App):
         self.titulo_ojos.value = f"Capturando ojo {ojo}"
         self.estado.value = f"Imagen actual del ojo {ojo}"
 
-    def detectar_patron_e_iris(self, frame, niveles_gris=16, umbral_bin=60):
+    def reducir_grises(self, imagen_gray, niveles=8):
+        factor = 256 // niveles
+        return (imagen_gray // factor) * factor
+
+    def detectar_patron_e_iris(self, frame):
         if frame is None or not isinstance(frame, np.ndarray) or frame.size == 0:
             print("no llega imagen")
             return None
 
+        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        gray_blur = cv2.GaussianBlur(gray, (7, 7), 1.5)
-        _, binarizada = cv2.threshold(gray_blur, 50, 255, cv2.THRESH_BINARY_INV)
-
-        contornos, _ = cv2.findContours(binarizada, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        for cnt in contornos:
-            (x, y), radius = cv2.minEnclosingCircle(cnt)
-            if 100 <= radius <= 160:
-                print("✅ Radio en rango para iris.")
-                center = (int(x), int(y))
-                radius = int(radius)
-                print(radius)
-                mask = np.zeros_like(gray)
-                cv2.drawContours(mask, [cnt], -1, 255, -1)
-                media = cv2.mean(gray, mask=mask)[0]
-                if media < 80:
-                    print("🟢 Iris validado por oscuridad.")
-                    print("iris ok")
-                    # Detección de patrón dentro del iris
-                    green = frame[:, :, 1]
-                    roi_mask = np.zeros_like(gray)
-                    cv2.circle(roi_mask, center, radius, 255, -1)
-                    green_eq = cv2.equalizeHist(green)
-                    green_blur = cv2.GaussianBlur(green_eq, (5, 5), 1.0)
-                    binary_green = cv2.adaptiveThreshold(green_blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
-                                                        cv2.THRESH_BINARY_INV, 11, 5)
-                    puntos_bin = cv2.bitwise_and(binary_green, binary_green, mask=roi_mask)
-                    puntos_contornos, _ = cv2.findContours(puntos_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                    print(f"🔬 Puntos candidatos en ROI: {len(puntos_contornos)}")
-
-                    puntos = []
-                    for pc in puntos_contornos:
-                        area = cv2.contourArea(pc)
-                        if 4 < area < 120:
-                            M = cv2.moments(pc)
-                            if M["m00"] != 0:
-                                cx = int(M["m10"] / M["m00"])
-                                cy = int(M["m01"] / M["m00"])
-                                #print("interesante")
-                                if cv2.pointPolygonTest(cnt, (cx, cy), False) >= 0:
-                                    puntos.append((cx, cy))
-                    print(len(puntos))
-                    if len(puntos) >= 40:
-                        puntos_np = np.array(puntos)
-                        (x_p, y_p), r_p = cv2.minEnclosingCircle(puntos_np)
-
-                        # Recorte ROI de la zona alrededor de la pupila
-                        x1 = max(center[0] - radius, 0)
-                        y1 = max(center[1] - radius, 0)
-                        x2 = min(center[0] + radius, frame.shape[1])
-                        y2 = min(center[1] + radius, frame.shape[0])
-                        roi_img = frame[y1:y2, x1:x2]
-                        coords_roi = (x1, y1, x2, y2)
-
-                        return (int(x_p), int(y_p), int(r_p), center[0], center[1], radius, roi_img, coords_roi)
-
-        return None
         
+        gray_eq = cv2.equalizeHist(gray)
+        gray_reducida = self.reducir_grises(gray_eq, 8)
+
+        green = frame[:, :, 1]
+        blur = cv2.GaussianBlur(green, (5, 5), 1.0)
+        binary = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 11, 7)
+        contornos, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        puntos = []
+        for c in contornos:
+            area = cv2.contourArea(c)
+            if 5 < area < 100:
+                perimetro = cv2.arcLength(c, True)
+                circularidad = 4 * np.pi * area / (perimetro ** 2 + 1e-6)
+                if 0.6 < circularidad < 1.3:
+                    M = cv2.moments(c)
+                    if M["m00"] != 0:
+                        cx = int(M["m10"] / M["m00"])
+                        cy = int(M["m01"] / M["m00"])
+                        puntos.append((cx, cy))
+
+        if not puntos:
+            #print("❌ No se detectaron puntos del patrón.")
+            return None
+
+        xs, ys = zip(*puntos)
+        cx_patron = int(np.mean(xs))
+        cy_patron = int(np.mean(ys))
+        radios = [np.sqrt((x - cx_patron)**2 + (y - cy_patron)**2) for (x, y) in puntos]
+        r_patron = int(np.mean(radios))
+
+        puntos_filtrados = [(x, y) for (x, y) in puntos if np.sqrt((x - cx_patron)**2 + (y - cy_patron)**2) < 1.05 * r_patron]
+
+        if len(puntos_filtrados) < 5:
+            #print("❌ Muy pocos puntos dentro del patrón, verifique iluminación.")
+            return None
+
+        xs, ys = zip(*puntos_filtrados)
+        cx_patron = int(np.mean(xs))
+        cy_patron = int(np.mean(ys))
+        radios = [np.sqrt((x - cx_patron)**2 + (y - cy_patron)**2) for (x, y) in puntos_filtrados]
+        r_patron = int(np.mean(radios))
+
+        roi_r = int(1.2 * r_patron)
+        h, w = frame.shape[:2]
+        x1, y1 = max(cx_patron - roi_r, 0), max(cy_patron - roi_r, 0)
+        x2, y2 = min(cx_patron + roi_r, w), min(cy_patron + roi_r, h)
+        coords_roi = (x1, y1, x2, y2)
+        roi_img = frame[y1:y2, x1:x2]
+
+        roi_gray = gray_reducida[y1:y2, x1:x2]
+        _, mask = cv2.threshold(roi_gray, 70, 255, cv2.THRESH_BINARY_INV)
+        contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        mejor_contorno = None
+        mejor_radio = 0
+        cx_iris, cy_iris = None, None
+
+        for c in contornos:
+            area = cv2.contourArea(c)
+            if area > 300:
+                (x, y), radius = cv2.minEnclosingCircle(c)
+                circularidad = 4 * np.pi * area / (cv2.arcLength(c, True) ** 2 + 1e-6)
+                if 0.4 < circularidad < 1.2 and 20 < radius < 200 and radius > mejor_radio:
+                    mejor_contorno = c
+                    mejor_radio = radius
+                    cx_iris, cy_iris = int(x), int(y)
+
+        if mejor_contorno is not None:
+            cx_abs = cx_iris + x1
+            cy_abs = cy_iris + y1
+            r_abs = int(mejor_radio)
+            return (cx_patron, cy_patron, r_patron, cx_abs, cy_abs, r_abs, roi_img, coords_roi)
+        else:
+            #print("❌ No se detectó el iris")
+            return None
+
+
     def activar_captura_automatica(self, e):
         self.auto_captura_activada = True
         self.activar_auto_btn.disabled = True

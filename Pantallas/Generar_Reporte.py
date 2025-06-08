@@ -126,15 +126,17 @@ def generar_reporte_pdf(datos, ruta_salida=None):
             f"Unidad de Diagnóstico Corneal\n"
             f"Centro de Salud Visual"
         )
+        
         try:
-            with open(path_pdf, "rb") as f:
-                file_data = f.read()
-                msg.add_attachment(file_data, maintype="application", subtype="pdf", filename=os.path.basename(path_pdf))
+            #with open(path_pdf, "rb") as f:
+                #file_data = f.read()
+                #msg.add_attachment(file_data, maintype="application", subtype="pdf", filename=os.path.basename(path_pdf))
             with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
                 smtp.login(remitente, clave)
                 smtp.send_message(msg)
             print("[INFO] Correo enviado exitosamente.")
         except Exception as e:
             print(f"[ERROR] No se pudo enviar el correo: {e}")
+        
 
     os.remove(path_pdf)

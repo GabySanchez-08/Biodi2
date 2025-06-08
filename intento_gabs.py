@@ -7,7 +7,7 @@ def reducir_grises(imagen_gray, niveles=8):
     return (imagen_gray // factor) * factor
 
 # === Cargar imagen ==
-ruta = "ojo_izquierdo_luz.jpg"
+ruta = "ojo_derecho.jpg"
 img = cv2.imread(ruta)
 if img is None:
     raise FileNotFoundError("❌ No se pudo cargar la imagen. Verifica la ruta y el nombre.")
