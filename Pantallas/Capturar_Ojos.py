@@ -27,8 +27,8 @@ class Capturar_Ojos(Base_App):
         self.available_cameras = self.detectar_camaras()
 
         self.imagen_preview = ft.Image(
-            width=1200,
-            height=700,
+            width = 600,
+            height=600,
             fit=ft.ImageFit.CONTAIN  # mantener proporciones sin deformar
         )
 
@@ -160,11 +160,12 @@ class Capturar_Ojos(Base_App):
             if ret and not self.captura_realizada:
                 #print("entro al if de ret")
                 h, w, _ = frame.shape
-                crop_h = int(h * 0.7)
-                crop_w = int(w * 0.7)
-                start_y = (h - crop_h) // 2
-                start_x = (w - crop_w) // 2
-                frame_crop = frame[start_y:start_y + crop_h, start_x:start_x + crop_w]
+                # lado del cuadrado = 70% del menor de los dos
+                side = int(min(h, w) * 0.7)
+                y0 = (h - side) // 2
+                x0 = (w - side) // 2
+                frame_crop = frame[y0:y0 + side, x0:x0 + side]
+
                 frame_mostrar = frame_crop.copy()  # copia solo para mostrar
 
                 resultado = self.detectar_patron_e_iris(frame_crop)
@@ -178,9 +179,12 @@ class Capturar_Ojos(Base_App):
 
                     # === Dibujo SOLO en frame_mostrar ===
                     # Marco rojo de ROI
-                    cv2.rectangle(frame_mostrar, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                    cv2.rectangle(frame_mostrar, (x1, y1), (x2, y2), (0, 0, 255), 2)  ##Rectangulo ROI rojo
                     # Cruces en centros
+                    #cruz verde  al centro del patron
                     cv2.drawMarker(frame_mostrar, (cx_patron, cy_patron), (0, 255, 0), markerType=cv2.MARKER_CROSS, markerSize=15, thickness=2)
+                    
+                    ##cruz  azul al centro del iris
                     cv2.drawMarker(frame_mostrar, (cx_iris, cy_iris), (255, 0, 0), markerType=cv2.MARKER_CROSS, markerSize=15, thickness=2)
                     # Círculo del patrón (verde)
                     cv2.circle(frame_mostrar, (cx_patron, cy_patron), r_patron, (0, 255, 0), 2)
@@ -191,11 +195,11 @@ class Capturar_Ojos(Base_App):
                     # Verificar alineación
                     delta = np.linalg.norm([cx_patron - cx_iris, cy_patron - cy_iris])
                     self.historial_alineacion.append(delta)
-                    if len(self.historial_alineacion) > 10:
+                    if len(self.historial_alineacion) > 15:
                         self.historial_alineacion.pop(0)
 
-                    # Requiere al menos 5 frames consecutivos dentro del umbral
-                    if self.auto_captura_activada and all(d < 15 for d in self.historial_alineacion[-5:]):
+                    # Requiere al menos 8 frames consecutivos dentro del umbral
+                    if self.auto_captura_activada and all(d < 10 for d in self.historial_alineacion[-5:]):
                         print("🟢 Estable y alineado. Capturando automáticamente...")
                         nombre_archivo = "ojo_derecho.jpg" if self.escaneando_derecho else "ojo_izquierdo.jpg"
                         cv2.imwrite(nombre_archivo, roi_img)
@@ -207,7 +211,7 @@ class Capturar_Ojos(Base_App):
                 # Líneas guía fijas
                 height, width, _ = frame_crop.shape
                 cx_fixed, cy_fixed = width // 2, height // 2
-                cv2.line(frame_mostrar, (0, cy_fixed), (width, cy_fixed), (0, 0, 255), 2)
+                cv2.line(frame_mostrar, (0, cy_fixed), (width, cy_fixed), (0, 0, 255), 2)  ##lineas rojas
                 cv2.line(frame_mostrar, (cx_fixed, 0), (cx_fixed, height), (0, 0, 255), 2)
                 cv2.rectangle(frame_mostrar,
                               (cx_fixed - lado // 2, cy_fixed - lado // 2),
@@ -227,12 +231,10 @@ class Capturar_Ojos(Base_App):
             ret, frame = self.cap.read()
             if ret:
                 h, w, _ = frame.shape
-                crop_h = int(h * 0.7)
-                crop_w = int(w * 0.7)
-                start_y = (h - crop_h) // 2
-                start_x = (w - crop_w) // 2
-                frame = frame[start_y:start_y+crop_h, start_x:start_x+crop_w]
-
+                side = int(min(h, w) * 0.7)
+                y0 = (h - side) // 2
+                x0 = (w - side) // 2
+                frame = frame[y0:y0 + side, x0:x0 + side]
                 kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
                 #frame = cv2.filter2D(frame, -1, kernel)
 
@@ -255,7 +257,7 @@ class Capturar_Ojos(Base_App):
         start_x = (w - zoom_w) // 2
 
         frame_zoom = frame[start_y:start_y + zoom_h, start_x:start_x + zoom_w]
-        frame_zoom = cv2.resize(frame_zoom, (1200, 700), interpolation=cv2.INTER_LINEAR)
+        frame_zoom = cv2.resize(frame_zoom, (600, 600), interpolation=cv2.INTER_LINEAR)
 
         _, buf = cv2.imencode(".jpg", frame_zoom)
         img_base64 = buf.tobytes()
@@ -274,10 +276,12 @@ class Capturar_Ojos(Base_App):
         self.zoom_slider.visible = True
         self.focus_slider.visible = True
         self.imagen_original = None
-        self.imagen_preview.width = 1200
-        self.imagen_preview.height = 700
+        self.imagen_preview.width = 600
+        self.imagen_preview.height = 600
         self.borrar_btn.disabled = True
         self.capturar_btn.disabled = False
+        self.auto_captura_activada = False
+        self.activar_auto_btn.disabled = False
         self.continuar_btn.disabled = not (
             os.path.exists("ojo_derecho.jpg") or os.path.exists("ojo_izquierdo.jpg")
         )
@@ -294,7 +298,7 @@ class Capturar_Ojos(Base_App):
         self.imagen_original = frame.copy()
 
         # Forzar ajuste visual correcto
-        frame_resized = cv2.resize(frame, (1200, 700), interpolation=cv2.INTER_LINEAR)
+        frame_resized = cv2.resize(frame, (600, 600), interpolation=cv2.INTER_LINEAR)
         _, buf = cv2.imencode(".jpg", frame_resized)
         img_base64 = buf.tobytes()
         self.imagen_preview.src_base64 = base64.b64encode(img_base64).decode("utf-8")
@@ -313,7 +317,7 @@ class Capturar_Ojos(Base_App):
         self.imagen_original = frame.copy()
 
         # Forzar ajuste visual correcto
-        frame_resized = cv2.resize(frame, (700, 700), interpolation=cv2.INTER_LINEAR)
+        frame_resized = cv2.resize(frame, (600, 600), interpolation=cv2.INTER_LINEAR)
         _, buf = cv2.imencode(".jpg", frame_resized)
         img_base64 = buf.tobytes()
         self.imagen_preview.src_base64 = base64.b64encode(img_base64).decode("utf-8")
@@ -444,14 +448,9 @@ class Capturar_Ojos(Base_App):
         if not puntos:
             #print("❌ No se detectaron puntos del patrón.")
             return None
-
-        xs, ys = zip(*puntos)
-        cx_patron = int(np.mean(xs))
-        cy_patron = int(np.mean(ys))
-        radios = [np.sqrt((x - cx_patron)**2 + (y - cy_patron)**2) for (x, y) in puntos]
-        r_patron = int(np.mean(radios))
-
-        puntos_filtrados = [(x, y) for (x, y) in puntos if np.sqrt((x - cx_patron)**2 + (y - cy_patron)**2) < 1.05 * r_patron]
+            
+        puntos_filtrados = puntos
+        #[(x, y) for (x, y) in puntos if np.sqrt((x - cx_patron)**2 + (y - cy_patron)**2) < 1.05 * r_patron]
 
         if len(puntos_filtrados) < 5:
             #print("❌ Muy pocos puntos dentro del patrón, verifique iluminación.")
@@ -461,12 +460,15 @@ class Capturar_Ojos(Base_App):
         cx_patron = int(np.mean(xs))
         cy_patron = int(np.mean(ys))
         radios = [np.sqrt((x - cx_patron)**2 + (y - cy_patron)**2) for (x, y) in puntos_filtrados]
-        r_patron = int(np.mean(radios))
+        r_patron = int(1.2*np.mean(radios))
 
         roi_r = int(1.2 * r_patron)
         h, w = frame.shape[:2]
-        x1, y1 = max(cx_patron - roi_r, 0), max(cy_patron - roi_r, 0)
-        x2, y2 = min(cx_patron + roi_r, w), min(cy_patron + roi_r, h)
+        margin = 20  # píxeles extra por cada lado
+        x1 = max(cx_patron - roi_r - margin, 0)
+        y1 = max(cy_patron - roi_r - margin, 0)
+        x2 = min(cx_patron + roi_r + margin, w)
+        y2 = min(cy_patron + roi_r + margin, h)
         coords_roi = (x1, y1, x2, y2)
         roi_img = frame[y1:y2, x1:x2]
 

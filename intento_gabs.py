@@ -7,7 +7,7 @@ def reducir_grises(imagen_gray, niveles=8):
     return (imagen_gray // factor) * factor
 
 # === Cargar imagen ==
-ruta = "ojo_derecho.jpg"
+ruta = "ojo1.jpeg"
 img = cv2.imread(ruta)
 if img is None:
     raise FileNotFoundError("❌ No se pudo cargar la imagen. Verifica la ruta y el nombre.")
@@ -48,11 +48,12 @@ radios = [np.sqrt((x - cx_patron)**2 + (y - cy_patron)**2) for (x, y) in puntos]
 r_patron = int(np.mean(radios))
 
 # Paso 3: Filtrar puntos que estén dentro del círculo verde
-puntos_filtrados = []
-for x, y in puntos:
-    dist = np.sqrt((x - cx_patron)**2 + (y - cy_patron)**2)
-    if dist < 1.05 * r_patron:
-        puntos_filtrados.append((x, y))
+puntos_filtrados = puntos
+#[]
+#for x, y in puntos:
+#    dist = np.sqrt((x - cx_patron)**2 + (y - cy_patron)**2)
+#    if dist < 1.2 * r_patron:
+#        puntos_filtrados.append((x, y))
 
 if len(puntos_filtrados) < 5:
     print("❌ Muy pocos puntos dentro del patrón, verifique iluminación.")
@@ -92,7 +93,7 @@ for c in contornos:
     if area > 300:
         (x, y), radius = cv2.minEnclosingCircle(c)
         circularidad = 4 * np.pi * area / (cv2.arcLength(c, True) ** 2 + 1e-6)
-        if 0.4 < circularidad < 1.2 and 20 < radius < 200 and radius > mejor_radio:
+        if 0.4 < circularidad < 1.2 and 150 < radius < 250 and radius > mejor_radio:
             mejor_contorno = c
             mejor_radio = radius
             cx_iris, cy_iris = int(x), int(y)
@@ -118,7 +119,7 @@ if mejor_contorno is not None:
         cv2.circle(canvas, (cx_abs, cy_abs), 4, (0, 0, 255), -1)
     titulo = f"Iris detectado | Radio: {r_abs}px"
 else:
-    titulo = "❌ No se detectó el iris"
+    titulo = " No se detectó el iris"
 
 # Mostrar resultados
 r, g, b = cv2.split(img_rgb)

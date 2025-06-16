@@ -2,92 +2,121 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-# === Rutas de las imágenes ===
-rutas = ["ojo_derecho.jpg","ojo_izquierdo.jpg","foto_con_patron.jpeg", "foto_con_patron2.jpeg", "foto_con_patron3.jpeg"]
-titulos = ["ojo_derecho.jpg","ojo_izquierdo.jpg","foto_con_patron", "foto_con_patron2", "foto_con_patron3"]
+def reducir_grises(imagen_gray, niveles=8):
+    factor = 256 // niveles
+    return (imagen_gray // factor) * factor
 
-imagenes_con_patron = []
-resultados = []
+# === Cargar imagen ===
+ruta = "ojo3.jpeg"
+img = cv2.imread(ruta)
+if img is None:
+    raise FileNotFoundError("❌ No se pudo cargar la imagen. Verifica la ruta y el nombre.")
 
-for ruta, titulo in zip(rutas, titulos):
-    img = cv2.imread(ruta)
-    if img is None:
-        imagenes_con_patron.append(None)
-        resultados.append((titulo, None, None, None, None))
-        continue
+# Convertimos a RGB para matplotlib
+img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-    output = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    gray_blur = cv2.GaussianBlur(gray, (7, 7), 1.5)
-    # Alternativa 1 (más robusta a cambios de iluminación)
-    binarizada = cv2.adaptiveThreshold(gray_blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                    cv2.THRESH_BINARY_INV, 15, 3)
-    contornos, _ = cv2.findContours(binarizada, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    pupila_encontrada = False
+# === Detectar patrón de puntos ===
+green = img[:, :, 1]
+blur = cv2.GaussianBlur(green, (5, 5), 1.0)
+binary = cv2.adaptiveThreshold(
+    blur, 255,
+    cv2.ADAPTIVE_THRESH_MEAN_C,
+    cv2.THRESH_BINARY_INV,
+    11, 7
+)
+contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    for cnt in contornos:
-        (x, y), radius = cv2.minEnclosingCircle(cnt)
-        if 80 <= radius <= 180:
-            center = (int(x), int(y))
-            radius = int(radius)
+# Paso 1: Filtrar candidatos circulares
+puntos = []
+for c in contours:
+    area = cv2.contourArea(c)
+    if 5 < area < 100:
+        per = cv2.arcLength(c, True)
+        circ = 4 * np.pi * area / (per**2 + 1e-6)
+        if 0.6 < circ < 1.3:
+            M = cv2.moments(c)
+            if M["m00"] != 0:
+                puntos.append((int(M["m10"]/M["m00"]), int(M["m01"]/M["m00"])))
 
-            mask = np.zeros_like(gray)
-            cv2.drawContours(mask, [cnt], -1, 255, -1)
-            media = cv2.mean(gray, mask=mask)[0]
-            if media < 160:
-                cv2.circle(output, center, radius, (0, 255, 0), 2)
-                cv2.circle(output, center, 2, (255, 0, 0), 3)
+if not puntos:
+    print("❌ No se detectaron puntos del patrón.")
+    exit()
 
-                green = img[:, :, 1]
-                roi_mask = np.zeros_like(gray)
-                cv2.circle(roi_mask, center, radius, 255, -1)
-                green_eq = cv2.equalizeHist(green)
-                green_blur = cv2.GaussianBlur(green_eq, (5, 5), 1.0)
-                binary_green = cv2.adaptiveThreshold(green_blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
-                                                     cv2.THRESH_BINARY_INV, 11, 5)
-                puntos_bin = cv2.bitwise_and(binary_green, binary_green, mask=roi_mask)
-                puntos_contornos, _ = cv2.findContours(puntos_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+# Paso 2: Centro y radio del patrón
+xs, ys = zip(*puntos)
+cx_patron = int(np.mean(xs))
+cy_patron = int(np.mean(ys))
+radios = [np.hypot(x - cx_patron, y - cy_patron) for x, y in puntos]
+r_patron = int(np.mean(radios))
+print(f"✅ Puntos detectados: {len(puntos)}, radio medio patrón: {r_patron}px")
 
-                puntos = []
-                for pc in puntos_contornos:
-                    area = cv2.contourArea(pc)
-                    if 4 < area < 120:
-                        M = cv2.moments(pc)
-                        if M["m00"] != 0:
-                            cx = int(M["m10"] / M["m00"])
-                            cy = int(M["m01"] / M["m00"])
-                            if cv2.pointPolygonTest(cnt, (cx, cy), False) >= 0:
-                                puntos.append((cx, cy))
-                                cv2.circle(output, (cx, cy), 3, (255, 165, 0), -1)
+# ROI centrada en el patrón (120% del radio)
+roi_r = int(1.2 * r_patron)
+h, w = img.shape[:2]
+x1, y1 = max(cx_patron - roi_r, 0), max(cy_patron - roi_r, 0)
+x2, y2 = min(cx_patron + roi_r, w), min(cy_patron + roi_r, h)
 
-                if len(puntos) >= 100:
-                    puntos_np = np.array(puntos)
-                    (x_p, y_p), r_p = cv2.minEnclosingCircle(puntos_np)
-                    cv2.circle(output, (int(x_p), int(y_p)), int(r_p), (0, 0, 255), 2)
-                    print(f"✅ {titulo}: {len(puntos)} puntos detectados")
-                    resultados.append((titulo, center, radius, (int(x_p), int(y_p)), int(r_p)))
-                else:
-                    print(f"⚠️ {titulo}: solo {len(puntos)} puntos encontrados — descartado")
-                    resultados.append((titulo, None, None, None, None))
+# === Preparar gris ecualizado para iris ===
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+gray_eq = cv2.equalizeHist(gray)
 
-                pupila_encontrada = True
-                break
+# === Detección del iris con HoughCircles ===
+roi_gray = gray_eq[y1:y2, x1:x2]
+roi_blur = cv2.medianBlur(roi_gray, 5)
+circulos = cv2.HoughCircles(
+    roi_blur,
+    cv2.HOUGH_GRADIENT,
+    dp=1.2,
+    minDist=50,
+    param1=100,
+    param2=30,
+    minRadius=int(0.8 * r_patron),
+    maxRadius=int(1.2 * r_patron)
+)
 
-    if not pupila_encontrada:
-        print(f"⚠️ No se detectó pupila válida en {titulo}")
-        resultados.append((titulo, None, None, None, None))
+# === Preparar lienzos de visualización ===
+img_vis = img_rgb.copy()
+gray_reducida = reducir_grises(gray_eq, niveles=8)
+img_gray_vis = cv2.cvtColor(gray_reducida, cv2.COLOR_GRAY2RGB)
 
-    imagenes_con_patron.append(output)
+# --- Dibujar patrón: puntos en rojo y círculo celeste ---
+for lienzo in (img_vis, img_gray_vis):
+    for x, y in puntos:
+        cv2.circle(lienzo, (x, y), 2, (255, 0, 0), -1)         # puntos en rojo
+    cv2.circle(lienzo, (cx_patron, cy_patron), r_patron,
+               (255, 255, 0), 2)                             # patrón en celeste
+    cv2.circle(lienzo, (cx_patron, cy_patron), 4,
+               (0, 255, 255), -1)                            # centro en amarillo
+    cv2.rectangle(lienzo, (x1, y1), (x2, y2),
+                  (0, 255, 0), 2)                            # ROI en verde
 
-# Mostrar resultados visuales
-fig, axs = plt.subplots(1, 3, figsize=(18, 6))
-for ax, img, titulo in zip(axs, imagenes_con_patron, titulos):
-    if img is not None:
-        ax.imshow(img)
-        ax.set_title(titulo)
-    else:
-        ax.text(0.5, 0.5, "Imagen no cargada", ha="center", va="center")
-    ax.axis("off")
+# --- Dibujar iris (si se detectó) en verde ---
+if circulos is not None:
+    circulos = np.round(circulos[0, :]).astype(int)
+    x_c, y_c, r_c = circulos[0]
+    cx_iris, cy_iris, r_iris = x_c + x1, y_c + y1, r_c
+    titulo = f"Iris detectado | Radio: {r_iris}px"
+    for lienzo in (img_vis, img_gray_vis):
+        cv2.circle(lienzo, (cx_iris, cy_iris), r_iris, (0, 255, 0), 2)
+        cv2.circle(lienzo, (cx_iris, cy_iris), 4, (0, 255, 0), -1)
+else:
+    titulo = "❌ No se detectó el iris"
+
+# === Mostrar resultados ===
+_, g_chan, _ = cv2.split(img_rgb)
+fig, axs = plt.subplots(1, 3, figsize=(16, 6))
+
+axs[0].imshow(img_vis)
+axs[0].set_title("RGB con detección")
+axs[0].axis("off")
+
+axs[1].imshow(img_gray_vis)
+axs[1].set_title(titulo)
+axs[1].axis("off")
+
+axs[2].imshow(g_chan, cmap='gray')
+axs[2].set_title("Canal verde")
+axs[2].axis("off")
+
 plt.tight_layout()
 plt.show()
-
