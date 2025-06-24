@@ -201,7 +201,7 @@ class Capturar_Ojos(Base_App):
                         self.historial_alineacion.pop(0)
 
                     # Requiere al menos 8 frames consecutivos dentro del umbral
-                    if self.auto_captura_activada and all(d < 10 for d in self.historial_alineacion[-5:]):
+                    if self.auto_captura_activada and all(d < 10 for d in self.historial_alineacion[-4:]):
                         print("🟢 Estable y alineado. Tomando ráfaga de imágenes…")
                  
                         # 2) Captura una ráfaga de 5 frames recortados
@@ -223,7 +223,7 @@ class Capturar_Ojos(Base_App):
                         # 4) Guarda y procesalo
                         nombre = "ojo_derecho.jpg" if self.escaneando_derecho else "ojo_izquierdo.jpg"
                         cv2.imwrite(nombre, mejor)
-                        self.procesar_post_captura2(mejor)
+                        self.procesar_post_captura(mejor)
                         self.mostrar_mensaje_exito("¡Captura nítida realizada!")
                         break
                     #else:
@@ -291,7 +291,7 @@ class Capturar_Ojos(Base_App):
             os.remove(ojo)
 
         self.captura_realizada = False
-        #self.zoom_slider_preview.visible = False
+        self.zoom_slider_preview.visible = False
         self.zoom_muestra = 1.0
         #self.zoom_slider.visible = True
         self.focus_slider.visible = True
@@ -333,24 +333,6 @@ class Capturar_Ojos(Base_App):
         self.focus_slider.visible = False
         self.page.update()
 
-    def procesar_post_captura2(self, frame):
-        self.imagen_original = frame.copy()
-
-        # Forzar ajuste visual correcto
-        frame_resized = cv2.resize(frame, (600, 600), interpolation=cv2.INTER_LINEAR)
-        _, buf = cv2.imencode(".jpg", frame_resized)
-        img_base64 = buf.tobytes()
-        self.imagen_preview.src_base64 = base64.b64encode(img_base64).decode("utf-8")
-
-        self.captura_realizada = True
-        #self.zoom_slider_preview.visible = True
-        self.actualizar_textos()
-        self.borrar_btn.disabled = False
-        self.capturar_btn.disabled = True
-        self.continuar_btn.disabled = False
-        #self.zoom_slider.visible = False
-        self.focus_slider.visible = False
-        self.page.update()
 
     def cambiar_zoom(self, e):
         if hasattr(self, 'cap') and self.cap.isOpened():
@@ -385,7 +367,7 @@ class Capturar_Ojos(Base_App):
             self.captura_realizada = True
             self.borrar_btn.disabled = False
             self.capturar_btn.disabled = True
-            self.zoom_slider.visible = False
+            #self.zoom_slider.visible = False
             self.focus_slider.visible = False
 
         else:
@@ -528,3 +510,18 @@ class Capturar_Ojos(Base_App):
     def calentar_camara(self):
         for _ in range(10):
             self.cap.read()
+
+    def sharpness(self, image):
+        """
+        Calcula la nitidez de la imagen utilizando la varianza del laplaciano.
+        Un valor mayor indica una imagen más nítida.
+        """
+        # Convertir a escala de grises si la imagen está en color
+        if len(image.shape) > 2:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        
+        # Calcular el Laplaciano de la imagen
+        laplacian = cv2.Laplacian(image, cv2.CV_64F)
+        
+        # Calcular la varianza del Laplaciano
+        return laplacian.var()
