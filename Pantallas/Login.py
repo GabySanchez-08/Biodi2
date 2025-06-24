@@ -9,8 +9,8 @@ class Login(Base_App):
     def mostrar(self):
         self.limpiar()
         logo = self.cargar_logo()
+        logo_pucp = self.cargar_logo_pucp()  # Asegúrate de tener esta función
 
-        # Cambiado: ahora se ingresa el correo directamente
         user_input = ft.TextField(label="Usuario", autofocus=True, width=400)
         pass_input = ft.TextField(label="Contraseña", password=True, can_reveal_password=True, width=400)
         mensaje = ft.Text("", size=14)
@@ -39,7 +39,6 @@ class Login(Base_App):
                 self.page.update()
                 return
 
-            # Autocompletar dominio si no se incluye
             if "@" not in entrada_usuario:
                 correo = f"{entrada_usuario}@gmail.com"
             else:
@@ -82,21 +81,29 @@ class Login(Base_App):
         user_input.on_submit = enfocar_contraseña
         pass_input.on_submit = validar_credenciales
 
-        login_layout = ft.Column([
-            logo,
-            ft.Text("Hola, Bienvenido a KeratoTECH", size=30, weight="bold", color="#1E88E5"),
-            ft.Text("Inicio de sesión", size=20),
-            user_input,
-            pass_input,
-            ft.ElevatedButton("Ingresar", on_click=validar_credenciales),
-            mensaje,
-            ft.TextButton("¿No tienes tu usuario y contraseña?", on_click=mostrar_ayuda),
-            ayuda_mensaje
-        ],
-        alignment=ft.MainAxisAlignment.CENTER,
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        spacing=15)
+        login_layout = ft.Container(
+            content=ft.Column([
+                logo,
+                ft.Text("Bienvenido a KeratoTECH", size=30, weight="bold", color="#1E88E5"),
+                ft.Text("Inicio de sesión", size=20),
+                user_input,
+                pass_input,
+                ft.ElevatedButton("Ingresar", on_click=validar_credenciales),
+                mensaje,
+                ft.TextButton("¿No tienes tu usuario y contraseña?", on_click=mostrar_ayuda),
+                ayuda_mensaje
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=15),
+            padding=ft.Padding(left=0, top=80, right=0, bottom=0)
+        )
 
-        self.page.add(ft.Container(content=login_layout, alignment=ft.alignment.center, expand=True))
+        # Stack para superponer el logo PUCP en la esquina superior derecha
+        pantalla = ft.Stack([
+            ft.Container(content=login_layout, alignment=ft.alignment.center, expand=True),
+            #ft.Container(content=logo_pucp, alignment=ft.alignment.top_right, padding=10),
+        ])
+
+        self.page.add(pantalla)
         self.page.update()
-

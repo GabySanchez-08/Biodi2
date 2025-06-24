@@ -43,31 +43,43 @@ class Menu_Principal(Base_App):
 
         saludo_texto = f"{saludo_genero}, {titulo} {nombre} {apellido}".strip()
 
-        saludo = ft.Text(saludo_texto, size=22, weight="bold")
+        saludo = ft.Text(saludo_texto, size=20, weight="bold")
         fecha = ft.Text(f"Fecha y hora: {fecha_actual}", size=12, color="gray")
        
-
+        logo_pucp = self.cargar_logo_pucp()
         # Header fijo
         header = ft.Container(
-            content=ft.Row([
-                ft.ElevatedButton(
-                    "Cerrar sesión",
-                    bgcolor=ft.colors.RED_300,
-                    color=ft.colors.WHITE,
-                    on_click=self.cerrar_sesion
-                ),
-                ft.TextButton(
-                    content=ft.Row([
-                        ft.Icon(ft.icons.PERSON_OUTLINE),
-                        ft.Text("Mi perfil", size=14)
-                    ],
-                    spacing=5,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                    on_click=self.ver_perfil
-                )
-            ],
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            padding=10
+            content=ft.Row(
+                controls=[
+                    # Lado izquierdo: botón cerrar sesión
+                    ft.ElevatedButton(
+                        "Cerrar sesión",
+                        bgcolor=ft.colors.RED_300,
+                        color=ft.colors.WHITE,
+                        on_click=self.cerrar_sesion
+                    ),
+                    # Lado derecho: logo + "Mi perfil" debajo
+                    ft.Column(
+                        controls=[
+                            ft.TextButton(
+                                content=ft.Row(
+                                    controls=[
+                                        ft.Icon(ft.icons.PERSON_OUTLINE),
+                                        ft.Text("Mi perfil", size=12)
+                                    ],
+                                    spacing=5,
+                                    vertical_alignment=ft.CrossAxisAlignment.CENTER
+                                ),
+                                on_click=self.ver_perfil
+                            )
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER
+                    )
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+            ),
+            padding=8
         )
 
         botones_evaluacion = [
@@ -88,27 +100,27 @@ class Menu_Principal(Base_App):
         ]
         # Sección Evaluación
         seccion_evaluacion = ft.Column([
-            ft.Text("Evaluación", size=20, weight="bold"),
+            ft.Text("Evaluación", size=18, weight="bold"),
             *botones_evaluacion
-        ], spacing=10, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
+        ], spacing=8, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
 
         # Sección Capturas pendientes
         seccion_pendientes = ft.Column([
-            ft.Text("Capturas pendientes", size=20, weight="bold"),
+            ft.Text("Capturas pendientes", size=18, weight="bold"),
             *botones_pendientes
-        ], spacing=10, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
+        ], spacing=8, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
 
         # Sección Historial
         seccion_historial = ft.Column([
-            ft.Text("Historial y reportes", size=20, weight="bold"),
+            ft.Text("Historial y reportes", size=18, weight="bold"),
             *botones_historial
-        ], spacing=10, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
+        ], spacing=8, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
 
         # Sección Opcional
         seccion_opciones = ft.Column([
-            ft.Text("Opciones", size=20, weight="bold"),
+            ft.Text("Opciones", size=18, weight="bold"),
             *boton_guia
-        ], spacing=10, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
+        ], spacing=8, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER,)
 
         self.page.add(
             ft.Column([

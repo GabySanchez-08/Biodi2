@@ -95,7 +95,7 @@ class Capturar_Ojos(Base_App):
                         self.dropdown_camaras,
                         self.imagen_preview,
                         self.zoom_slider_preview,
-                        self.zoom_slider,
+                        #self.zoom_slider,
                         self.focus_slider,
                         self.estado,
                         self.botones
@@ -145,9 +145,11 @@ class Capturar_Ojos(Base_App):
         actual_height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         print(f"[INFO] Resolución cámara: {int(actual_width)}x{int(actual_height)}")
 
+        self.cap.set(cv2.CAP_PROP_ZOOM, 120)
+        
         # Iniciar flujo de video
         self.stream_running = True
-        self.zoom_slider.visible = True
+        #self.zoom_slider.visible = True
         self.focus_slider.visible = True
         self.page.update()
         self.page.run_task(self.actualizar_stream)
@@ -200,11 +202,29 @@ class Capturar_Ojos(Base_App):
 
                     # Requiere al menos 8 frames consecutivos dentro del umbral
                     if self.auto_captura_activada and all(d < 10 for d in self.historial_alineacion[-5:]):
-                        print("🟢 Estable y alineado. Capturando automáticamente...")
-                        nombre_archivo = "ojo_derecho.jpg" if self.escaneando_derecho else "ojo_izquierdo.jpg"
-                        cv2.imwrite(nombre_archivo, roi_img)
-                        self.procesar_post_captura2(roi_img)
-                        self.mostrar_mensaje_exito("¡Captura realizada automáticamente!")
+                        print("🟢 Estable y alineado. Tomando ráfaga de imágenes…")
+                 
+                        # 2) Captura una ráfaga de 5 frames recortados
+                        candidatos = []
+                        for _ in range(5):
+                            ret2, f2 = self.cap.read()
+                            if not ret2:
+                                continue
+                            # recorta cuadrado igual que arriba
+                            side2 = int(min(*f2.shape[:2]) * 0.7)
+                            y02 = (f2.shape[0] - side2) // 2
+                            x02 = (f2.shape[1] - side2) // 2
+                            crop2 = f2[y02:y02 + side2, x02:x02 + side2]
+                            candidatos.append(crop2)
+
+                        # 3) Escoge el más nítido
+                        mejor = max(candidatos, key=lambda im: self.sharpness(im))
+
+                        # 4) Guarda y procesalo
+                        nombre = "ojo_derecho.jpg" if self.escaneando_derecho else "ojo_izquierdo.jpg"
+                        cv2.imwrite(nombre, mejor)
+                        self.procesar_post_captura2(mejor)
+                        self.mostrar_mensaje_exito("¡Captura nítida realizada!")
                         break
                     #else:
                         #print(f"🔶 Desalineado o inestable. Δ={delta:.2f}")
@@ -271,9 +291,9 @@ class Capturar_Ojos(Base_App):
             os.remove(ojo)
 
         self.captura_realizada = False
-        self.zoom_slider_preview.visible = False
+        #self.zoom_slider_preview.visible = False
         self.zoom_muestra = 1.0
-        self.zoom_slider.visible = True
+        #self.zoom_slider.visible = True
         self.focus_slider.visible = True
         self.imagen_original = None
         self.imagen_preview.width = 600
@@ -304,12 +324,12 @@ class Capturar_Ojos(Base_App):
         self.imagen_preview.src_base64 = base64.b64encode(img_base64).decode("utf-8")
 
         self.captura_realizada = True
-        self.zoom_slider_preview.visible = True
+        #self.zoom_slider_preview.visible = True
         self.actualizar_textos()
         self.borrar_btn.disabled = False
         self.capturar_btn.disabled = True
         self.continuar_btn.disabled = False
-        self.zoom_slider.visible = False
+        #self.zoom_slider.visible = False
         self.focus_slider.visible = False
         self.page.update()
 
@@ -323,12 +343,12 @@ class Capturar_Ojos(Base_App):
         self.imagen_preview.src_base64 = base64.b64encode(img_base64).decode("utf-8")
 
         self.captura_realizada = True
-        self.zoom_slider_preview.visible = True
+        #self.zoom_slider_preview.visible = True
         self.actualizar_textos()
         self.borrar_btn.disabled = False
         self.capturar_btn.disabled = True
         self.continuar_btn.disabled = False
-        self.zoom_slider.visible = False
+        #self.zoom_slider.visible = False
         self.focus_slider.visible = False
         self.page.update()
 

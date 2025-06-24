@@ -7,7 +7,7 @@ def reducir_grises(imagen_gray, niveles=8):
     return (imagen_gray // factor) * factor
 
 # === Cargar imagen ===
-ruta = "ojo3.jpeg"
+ruta = "ojo_izquierdo_gabs.jpg"
 img = cv2.imread(ruta)
 if img is None:
     raise FileNotFoundError("❌ No se pudo cargar la imagen. Verifica la ruta y el nombre.")
@@ -79,16 +79,18 @@ img_vis = img_rgb.copy()
 gray_reducida = reducir_grises(gray_eq, niveles=8)
 img_gray_vis = cv2.cvtColor(gray_reducida, cv2.COLOR_GRAY2RGB)
 
+
+
 # --- Dibujar patrón: puntos en rojo y círculo celeste ---
 for lienzo in (img_vis, img_gray_vis):
     for x, y in puntos:
         cv2.circle(lienzo, (x, y), 2, (255, 0, 0), -1)         # puntos en rojo
     cv2.circle(lienzo, (cx_patron, cy_patron), r_patron,
-               (255, 255, 0), 2)                             # patrón en celeste
+               (255, 255, 0), 2)                             # patrón en amarillo
     cv2.circle(lienzo, (cx_patron, cy_patron), 4,
-               (0, 255, 255), -1)                            # centro en amarillo
-    cv2.rectangle(lienzo, (x1, y1), (x2, y2),
-                  (0, 255, 0), 2)                            # ROI en verde
+               (255, 255, 0), -1)                            # centro en amarillo
+    #cv2.rectangle(lienzo, (x1, y1), (x2, y2),
+                  #(0, 255, 255), 2)                            # ROI en amarillo
 
 # --- Dibujar iris (si se detectó) en verde ---
 if circulos is not None:
@@ -96,9 +98,21 @@ if circulos is not None:
     x_c, y_c, r_c = circulos[0]
     cx_iris, cy_iris, r_iris = x_c + x1, y_c + y1, r_c
     titulo = f"Iris detectado | Radio: {r_iris}px"
+
+        # Calcular cuadrado 105% del diámetro del iris
+    lado = int(2 * r_iris * 1.05)
+    mitad = lado // 2
+    x_sq1, y_sq1 = cx_iris - mitad, cy_iris - mitad
+    x_sq2, y_sq2 = cx_iris + mitad, cy_iris + mitad
+
+    # Ajustar a los límites de la imagen
+    x_sq1, y_sq1 = max(0, x_sq1), max(0, y_sq1)
+    x_sq2, y_sq2 = min(w, x_sq2), min(h, y_sq2)
+
     for lienzo in (img_vis, img_gray_vis):
         cv2.circle(lienzo, (cx_iris, cy_iris), r_iris, (0, 255, 0), 2)
         cv2.circle(lienzo, (cx_iris, cy_iris), 4, (0, 255, 0), -1)
+        cv2.rectangle(lienzo, (x_sq1, y_sq1), (x_sq2, y_sq2), (0, 255, 0), 2)  # cuadrado en verde
 else:
     titulo = "❌ No se detectó el iris"
 
