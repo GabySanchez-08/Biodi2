@@ -7,7 +7,6 @@ from PIL import Image
 import smtplib
 from email.message import EmailMessage
 
-
 def generar_reporte_pdf(datos, ruta_salida=None):
     dni = datos.get("dni")
     fecha = datos.get("fecha_registro")
@@ -69,16 +68,13 @@ def generar_reporte_pdf(datos, ruta_salida=None):
     pdf.cell(0, 8, "Análisis Topográfico Corneal", ln=True)
     pdf.ln(5)
 
-    for i in range(4):
-        x = 10 + (i % 2) * 100
-        y = pdf.get_y()
-        mapa = None
-        if i < len(mapas_der):
-            mapa = mapas_der[i]
-        elif i - len(mapas_der) < len(mapas_izq):
-            mapa = mapas_izq[i - len(mapas_der)]
+    # Organizar las imágenes en 2 filas y 2 columnas (2 por cada ojo)
+    posiciones = [(10, 70), (105, 70), (10, 160), (105, 160)]  # Coordenadas para las imágenes
 
-        if mapa and os.path.exists(mapa):
+    # Añadir las imágenes del ojo derecho
+    for i, mapa in enumerate(mapas_der[:2]):  # Solo 2 imágenes por ojo
+        x, y = posiciones[i]
+        if os.path.exists(mapa):
             with Image.open(mapa) as img:
                 img_w, img_h = img.size
                 max_w = 90
@@ -92,8 +88,24 @@ def generar_reporte_pdf(datos, ruta_salida=None):
             pdf.set_xy(x + 30, y + 40)
             pdf.set_font("Arial", '', 10)
             pdf.cell(30, 10, f"Mapa {i+1}", align="C")
-        if i % 2 == 1:
-            pdf.ln(95)
+
+    # Añadir las imágenes del ojo izquierdo
+    for i, mapa in enumerate(mapas_izq[:2]):  # Solo 2 imágenes por ojo
+        x, y = posiciones[i + 2]  # Usar las siguientes posiciones
+        if os.path.exists(mapa):
+            with Image.open(mapa) as img:
+                img_w, img_h = img.size
+                max_w = 90
+                max_h = 90
+                ratio = min(max_w / img_w, max_h / img_h)
+                new_w = img_w * ratio
+                new_h = img_h * ratio
+                pdf.image(mapa, x=x, y=y, w=new_w, h=new_h)
+        else:
+            pdf.rect(x, y, 90, 90)
+            pdf.set_xy(x + 30, y + 40)
+            pdf.set_font("Arial", '', 10)
+            pdf.cell(30, 10, f"Mapa {i+3}", align="C")
 
     pdf.ln(5)
     pdf.set_font("Arial", '', 10)
@@ -128,9 +140,6 @@ def generar_reporte_pdf(datos, ruta_salida=None):
         )
         
         try:
-            #with open(path_pdf, "rb") as f:
-                #file_data = f.read()
-                #msg.add_attachment(file_data, maintype="application", subtype="pdf", filename=os.path.basename(path_pdf))
             with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
                 smtp.login(remitente, clave)
                 smtp.send_message(msg)

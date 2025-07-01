@@ -172,12 +172,10 @@ class Capturar_Ojos(Base_App):
 
                 resultado = self.detectar_patron_e_iris(frame_crop)
                 #resultado = 0
-
                 if resultado:
                     print("entro al if de resultado")
                     cx_patron, cy_patron, r_patron, cx_iris, cy_iris, r_iris, roi_img, (x1, y1, x2, y2) = resultado
                     # Ajustar coordenadas al sistema de frame_crop si este proviene de un recorte
-                    
 
                     # === Dibujo SOLO en frame_mostrar ===
                     # Marco rojo de ROI
@@ -193,6 +191,9 @@ class Capturar_Ojos(Base_App):
                     # Círculo del iris (azul)
                     cv2.circle(frame_mostrar, (cx_iris, cy_iris), r_iris, (255, 0, 0), 2)
 
+                    # Recortar la región del ROI (el rectángulo rojo)
+                    roi_capturada = frame_crop[y1:y2, x1:x2]  # Recorta la imagen usando las coordenadas del ROI
+
                     # Captura automática si está alineado
                     # Verificar alineación
                     delta = np.linalg.norm([cx_patron - cx_iris, cy_patron - cy_iris])
@@ -203,14 +204,14 @@ class Capturar_Ojos(Base_App):
                     # Requiere al menos 8 frames consecutivos dentro del umbral
                     if self.auto_captura_activada and all(d < 10 for d in self.historial_alineacion[-4:]):
                         print("🟢 Estable y alineado. Tomando ráfaga de imágenes…")
-                 
+
                         # 2) Captura una ráfaga de 5 frames recortados
                         candidatos = []
                         for _ in range(5):
                             ret2, f2 = self.cap.read()
                             if not ret2:
                                 continue
-                            # recorta cuadrado igual que arriba
+                            # Recorta cuadrado igual que arriba
                             side2 = int(min(*f2.shape[:2]) * 0.7)
                             y02 = (f2.shape[0] - side2) // 2
                             x02 = (f2.shape[1] - side2) // 2
@@ -219,12 +220,13 @@ class Capturar_Ojos(Base_App):
 
                         # 3) Escoge el más nítido
                         mejor = max(candidatos, key=lambda im: self.sharpness(im))
+                        roi_capturada = mejor[y1:y2, x1:x2]  # Recorta la imagen usando las coordenadas del ROI
 
-                        # 4) Guarda y procesalo
+                        # 4) Guarda solo el ROI recortado y procesado
                         nombre = "ojo_derecho.jpg" if self.escaneando_derecho else "ojo_izquierdo.jpg"
-                        cv2.imwrite(nombre, mejor)
-                        self.procesar_post_captura(mejor)
-                        self.mostrar_mensaje_exito("¡Captura nítida realizada!")
+                        cv2.imwrite(nombre, roi_capturada)  # Guarda solo el ROI recortado
+                        self.procesar_post_captura(roi_capturada)  # Procesa la imagen recortada
+                        self.mostrar_mensaje_exito("¡Captura nítida del ROI realizada!")
                         break
                     #else:
                         #print(f"🔶 Desalineado o inestable. Δ={delta:.2f}")
@@ -464,7 +466,7 @@ class Capturar_Ojos(Base_App):
         radios = [np.sqrt((x - cx_patron)**2 + (y - cy_patron)**2) for (x, y) in puntos_filtrados]
         r_patron = int(1.2*np.mean(radios))
 
-        roi_r = int(1.2 * r_patron)
+        roi_r = int(1.05 * r_patron)
         h, w = frame.shape[:2]
         margin = 20  # píxeles extra por cada lado
         x1 = max(cx_patron - roi_r - margin, 0)
