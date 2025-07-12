@@ -14,9 +14,10 @@ class Capturar_Ojos(Base_App):
         self.mostrando_todos = False
         self.imagen_original = None
         self.auto_captura_activada = False
-        self.historial_alineacion = []
+        self.historial_iris = []
         self.recorte_frame = 0.7 # Este es el zoom/recorte que se le hace al frame para que se vea de más cerca
         self.radio_guia = 150
+
     def mostrar(self):
         self.limpiar()
 
@@ -156,61 +157,80 @@ class Capturar_Ojos(Base_App):
 
 
     async def actualizar_stream(self):
-        lado = 24
+
         while self.stream_running:
             ret, frame = self.cap.read()
             if ret and not self.captura_realizada:
-                frame_crop,roi_ojo = self.obtener_marco_limites(ret, frame)
-                frame_mostrar = frame_crop.copy()   
+                frame_crop, roi_ojo = self.obtener_marco_limites(ret, frame)
+                frame_mostrar = frame_crop.copy()
 
+                # Centro del ROI (guía visual y centro esperado del iris)
+                h_crop, w_crop = frame_crop.shape[:2]
+                cx_fixed, cy_fixed = w_crop // 2, h_crop // 2
+
+                # Intentar detectar el patrón (opcional)
                 resultado_patron = self.detectar_patron(frame_crop)
                 if resultado_patron:
                     cx_patron, cy_patron, r_patron = resultado_patron
                 else:
                     cx_patron = cy_patron = r_patron = None
 
-                resultado_iris = None
-                if resultado_patron:
-                    resultado_iris = self.detectar_iris(frame_crop, cx_patron, cy_patron, r_patron)
-                else:
-                    # Si no hay patrón, intenta estimar el centro de la imagen como base
-                    h_crop, w_crop = frame_crop.shape[:2]
-                    cx_estimado, cy_estimado = w_crop // 2, h_crop // 2
-                    
-                    resultado_iris = self.detectar_iris(frame_crop, cx_estimado, cy_estimado, self.radio_guia)
+                # Detección del iris (siempre se intenta)
+                resultado_iris = self.detectar_iris(frame_crop, cx_fixed, cy_fixed, self.radio_guia)
 
                 if resultado_iris:
                     cx_iris, cy_iris, r_iris, roi_img = resultado_iris
 
-                    # --- DIBUJAR ---
+                    # Dibujar iris
                     cv2.drawMarker(frame_mostrar, (cx_iris, cy_iris), (255, 0, 0),
                                 markerType=cv2.MARKER_CROSS, markerSize=15, thickness=2)
                     cv2.circle(frame_mostrar, (cx_iris, cy_iris), r_iris, (255, 0, 0), 2)
-                    
 
-                    if resultado_patron:
-                        cv2.drawMarker(frame_mostrar, (cx_patron, cy_patron), (0, 255, 0),
-                                    markerType=cv2.MARKER_CROSS, markerSize=15, thickness=2)
-                        cv2.circle(frame_mostrar, (cx_patron, cy_patron), r_patron, (0, 255, 0), 2)
+                    # Evaluar alineación con centro y tamaño esperado
+                    distancia_centro = np.linalg.norm([cx_fixed - cx_iris, cy_fixed - cy_iris])
+                    tolerancia_posicion = 10
 
-                        # === Evaluar alineación ===
-                        delta = np.linalg.norm([cx_patron - cx_iris, cy_patron - cy_iris])
-                        self.historial_alineacion.append(delta)
-                        if len(self.historial_alineacion) > 15:
-                            self.historial_alineacion.pop(0)
+                    radio_relativo = r_iris / self.radio_guia
+                    bien_centrado = distancia_centro < tolerancia_posicion
+                    radio_esperado = 0.9 < radio_relativo < 1.1
+                    color_iris = (255, 0, 0)  # Azul por defecto
+                    # === NUEVO: usar historial para capturar solo si está alineado varios frames ===
+                    if bien_centrado and radio_esperado:
+                        self.historial_iris.append(True)
+                    else:
+                        self.historial_iris.append(False)
 
-                        if self.auto_captura_activada and all(d < 10 for d in self.historial_alineacion[-4:]):
-                            print("🟢 Estable y alineado. Tomando ráfaga de imágenes…")
-                            self.capturar
-                            break
+                    # Mantener solo los últimos 5 frames
+                    if len(self.historial_iris) > 3:
+                        self.historial_iris.pop(0)
 
-                # Guías fijas
-                height, width, _ = frame_crop.shape
-                cx_fixed, cy_fixed = width // 2, height // 2
-                self.radio_guia = 150
+                    # Verificar si ha estado alineado por 5 frames seguidos
+                    if len(self.historial_iris) == 3 and all(self.historial_iris):
+                        print(f"🟢 Iris estable durante 3 frames. Capturando… (radio: {r_iris:.1f}, centro Δ: {distancia_centro:.1f})")
+                        self.capturar(None)
+                        self.historial_iris.clear()
+                        break
+                    else:
+                        # Evaluar precaptura para cambiar color
+                        casi_centrado = distancia_centro < 1.5 * tolerancia_posicion
+                        radio_casi_esperado = 0.85 < radio_relativo < 1.15
+                        color_iris = (0, 255, 255) if casi_centrado and radio_casi_esperado else (255, 0, 0)
+                        print(f"🔶 Iris fuera de rango - Δ centro: {distancia_centro:.1f}, radio: {r_iris:.1f} ({radio_relativo*100:.1f}%)")
+
+                    # Dibujar el iris
+                    cv2.drawMarker(frame_mostrar, (cx_iris, cy_iris), color_iris,
+                                markerType=cv2.MARKER_CROSS, markerSize=15, thickness=2)
+                    cv2.circle(frame_mostrar, (cx_iris, cy_iris), r_iris, color_iris, 2)
+                # Mostrar patrón si se detecta
+                if resultado_patron:
+                    cv2.drawMarker(frame_mostrar, (cx_patron, cy_patron), (0, 255, 0),
+                                markerType=cv2.MARKER_CROSS, markerSize=15, thickness=2)
+                    cv2.circle(frame_mostrar, (cx_patron, cy_patron), r_patron, (0, 255, 0), 2)
+
+                # Dibujar guías
                 cv2.circle(frame_mostrar, (cx_fixed, cy_fixed), self.radio_guia, (0, 0, 255), 2)
-                cv2.line(frame_mostrar, (0, cy_fixed), (width, cy_fixed), (0, 0, 255), 2)  ##lineas rojas
-                cv2.line(frame_mostrar, (cx_fixed, 0), (cx_fixed, height), (0, 0, 255), 2)
+                cv2.line(frame_mostrar, (0, cy_fixed), (w_crop, cy_fixed), (0, 0, 255), 2)
+                cv2.line(frame_mostrar, (cx_fixed, 0), (cx_fixed, h_crop), (0, 0, 255), 2)
 
                 # Mostrar en interfaz
                 _, buf = cv2.imencode(".jpg", frame_mostrar)
@@ -219,8 +239,6 @@ class Capturar_Ojos(Base_App):
                 self.page.update()
 
             await asyncio.sleep(0.05)
-
-            
 
     def capturar(self, e):
         if not self.cap.isOpened():
@@ -236,19 +254,19 @@ class Capturar_Ojos(Base_App):
             frame_crop, roi_ojo = self.obtener_marco_limites(ret, frame)
 
             nombre_candidata = f"candidata{i+1}.jpg"
-            cv2.imwrite(nombre_candidata, roi_ojo)
+            #cv2.imwrite(nombre_candidata, roi_ojo)
 
             score = self.sharpness(roi_ojo)
             puntajes.append(score)
             candidatos.append(roi_ojo)
 
-            print(f"[🔍] Nitidez de {nombre_candidata}: {score:.2f}")
+            #print(f"[🔍] Nitidez de {nombre_candidata}: {score:.2f}")
 
         if candidatos:
             indice_mejor = puntajes.index(max(puntajes))
             mejor = candidatos[indice_mejor]
             nombre_mejor = f"candidata{indice_mejor+1}.jpg"
-            print(f"[✅] Imagen más nítida: {nombre_mejor} con puntaje {puntajes[indice_mejor]:.2f}")
+            #print(f"[✅] Imagen más nítida: {nombre_mejor} con puntaje {puntajes[indice_mejor]:.2f}")
 
             filename = "ojo_derecho.jpg" if self.escaneando_derecho else "ojo_izquierdo.jpg"
             cv2.imwrite(filename, mejor)
@@ -361,10 +379,9 @@ class Capturar_Ojos(Base_App):
     def detectar_patron(self, frame):
         h, w = frame.shape[:2]
         cx_fixed, cy_fixed = w // 2, h // 2
-        radio_guia = 160
 
         mask = np.zeros((h, w), dtype=np.uint8)
-        cv2.circle(mask, (cx_fixed, cy_fixed), radio_guia, 255, -1)
+        cv2.circle(mask, (cx_fixed, cy_fixed), self.radio_guia, 255, -1)
         frame_masked = cv2.bitwise_and(frame, frame, mask=mask)
         green = frame_masked[:, :, 1]
         gray = cv2.cvtColor(frame_masked, cv2.COLOR_BGR2GRAY)
@@ -401,22 +418,27 @@ class Capturar_Ojos(Base_App):
 
         return (cx_patron, cy_patron, r_patron)
 
-    def detectar_iris(self, frame, cx_patron, cy_patron, r_patron):
+    def detectar_iris(self, frame, cx_base, cy_base, radio_guia):
+        """
+        Busca el iris alrededor del centro estimado (cx_base, cy_base), en una región del 200% del radio_guia.
+        Retorna: (cx_iris, cy_iris, r_iris, roi_img) o None si no se encuentra.
+        """
         h, w = frame.shape[:2]
-        
-        radio_busqueda = int(2.0 * 160)  # 200% del radio guía
-        x1 = max(cx_patron - radio_busqueda, 0)
-        y1 = max(cy_patron - radio_busqueda, 0)
-        x2 = min(cx_patron + radio_busqueda, w)
-        y2 = min(cy_patron + radio_busqueda, h)
+        radio_busqueda = int(2.0 * radio_guia)
 
-        roi_iris = frame[y1:y2, x1:x2]
-        gray = cv2.cvtColor(roi_iris, cv2.COLOR_BGR2GRAY)
+        # Definir región de interés (ROI)
+        x1 = max(cx_base - radio_busqueda, 0)
+        y1 = max(cy_base - radio_busqueda, 0)
+        x2 = min(cx_base + radio_busqueda, w)
+        y2 = min(cy_base + radio_busqueda, h)
+
+        roi_img = frame[y1:y2, x1:x2]
+        gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
         gray_eq = cv2.equalizeHist(gray)
-        gray_reducida = self.reducir_grises(gray_eq, 8)
+        gray_red = self.reducir_grises(gray_eq, 8)
 
-        _, mask_iris = cv2.threshold(gray_reducida, 70, 255, cv2.THRESH_BINARY_INV)
-        contornos, _ = cv2.findContours(mask_iris, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        _, mask = cv2.threshold(gray_red, 70, 255, cv2.THRESH_BINARY_INV)
+        contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         mejor_radio = 0
         mejor_contorno = None
@@ -426,9 +448,11 @@ class Capturar_Ojos(Base_App):
             area = cv2.contourArea(c)
             if area > 300:
                 (x, y), radius = cv2.minEnclosingCircle(c)
-                circularidad = 4 * np.pi * area / (cv2.arcLength(c, True)**2 + 1e-6)
+                circularidad = 4 * np.pi * area / (cv2.arcLength(c, True) ** 2 + 1e-6)
+
+                # Condiciones geométricas del iris
                 if 0.4 < circularidad < 1.2:
-                    if 0.8 * r_patron < radius < 1.2 * r_patron and radius > mejor_radio:
+                    if 0.8 * radio_guia < radius < 1.2 * radio_guia and radius > mejor_radio:
                         mejor_radio = radius
                         mejor_contorno = c
                         cx_iris, cy_iris = int(x), int(y)
@@ -437,7 +461,7 @@ class Capturar_Ojos(Base_App):
             cx_abs = cx_iris + x1
             cy_abs = cy_iris + y1
             r_abs = int(mejor_radio)
-            return (cx_abs, cy_abs, r_abs, roi_iris)
+            return (cx_abs, cy_abs, r_abs, roi_img)
         else:
             return None
     

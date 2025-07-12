@@ -11,7 +11,7 @@ from scipy.interpolate import interp1d
 import pandas as pd
 # Generar una función integrada con entrada imagen y salida mapa de calor delta_zq
 
-image_path = r"/Users/gaby/Desktop/Software_Laptop/ojo_ultimo2.png"
+image_path = r"/Users/gaby/Desktop/Software_Laptop/ojo_ultimo.png"
 output_dir = os.path.dirname(image_path)
 
 def metodo_biodi2_diferencia_final(image_path, output_path1="mapa_diferencia.jpg",output_path2="mapa_tangencial.jpg"):
@@ -440,7 +440,7 @@ def metodo_biodi2_diferencia_final(image_path, output_path1="mapa_diferencia.jpg
     return Zgrid, delta_zq
 
 # Ejecutar función con imagen 'prueba5.png'
-metodo_biodi2_diferencia_final("/Users/gaby/Desktop/Software_Laptop/ojo_ultimo2.png")
+metodo_biodi2_diferencia_final("/Users/gaby/Desktop/Software_Laptop/ojo_ultimo.png")
 
 
 # ===== OBTENCIÓN DE MAPAS TOPOGRÁFICOS =====
@@ -630,6 +630,5 @@ def obtener_parametros_completos(elev_map, tang_map):
 df_parametros = obtener_parametros_completos(elev_map, tang_map)
 # Definir ruta de guardado
 
-print(df_parametros)
 
 

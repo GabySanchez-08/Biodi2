@@ -1,50 +1,61 @@
 import cv2
 import os
-from Pantallas.Generar_Mapa_Elevacion import generar_mapa_elevacion  # Importamos la función generar_mapa_elevacion
+import numpy as np
+from Pantallas.Generar_Mapa_Elevacion import generar_mapas_y_sacar_numeros
 
-def generar_mapa_topografico(imagen_entrada, salida_base):
+def generar_mapa_topografico(imagen_entrada):
     """
-    Genera 3 mapas topográficos con distintos esquemas de color.
-    Uno de los mapas es generado con la función de mapa de elevación.
+    Genera y renombra mapas topográficos (tangencial y diferencia), adaptándolos a 300x300 sin distorsión
+    ni pérdida de calidad: se escala solo si es necesario y se centra en un canvas blanco.
     """
     if not os.path.exists(imagen_entrada):
         print(f"[ERROR] Imagen no encontrada: {imagen_entrada}")
         return []
 
-    img = cv2.imread(imagen_entrada)
-    if img is None:
-        print("[ERROR] No se pudo leer la imagen.")
-        return []
+    # Generar los mapas
+    generar_mapas_y_sacar_numeros(imagen_entrada)
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # Determinar lado
+    if "derecho" in imagen_entrada.lower():
+        lado = "derecho"
+    elif "izquierdo" in imagen_entrada.lower():
+        lado = "izquierdo"
+    else:
+        lado = "desconocido"
 
-    colormaps = [
-        cv2.COLORMAP_JET,
-        cv2.COLORMAP_HOT,
-        cv2.COLORMAP_OCEAN,
-    ]
+    archivos_generados = {
+        "mapa_tangencial.jpg": f"mapa_tangencial_{lado}.jpg",
+        "mapa_diferencia.jpg": f"mapa_diferencia_{lado}.jpg"
+    }
 
-    salidas = []
-    
+    rutas_finales = []
 
-    # Leer la imagen
-    img_color = img
+    for original, nuevo_path in archivos_generados.items():
+        if os.path.exists(original):
+            os.rename(original, nuevo_path)
 
-    # Llamar a la función para generar el mapa de elevación
-    mapa_elevacion_path = generar_mapa_elevacion(img_color)
+            # Leer imagen
+            img = cv2.imread(nuevo_path)
+            h, w = img.shape[:2]
 
-    # Guardar el mapa de elevación con un nombre adecuado
-    mapa_elevacion_salida = f"{salida_base}_elevacion.jpg"
-    mapa_elevacion = cv2.imread(mapa_elevacion_path)
-    cv2.imwrite(mapa_elevacion_salida, mapa_elevacion)
+            # Solo escalar si es mayor a 300x300
+            if h > 300 or w > 300:
+                scale = min(300 / w, 300 / h)
+                new_w, new_h = int(w * scale), int(h * scale)
+                img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                h, w = img.shape[:2]
 
-    salidas.append(mapa_elevacion_salida)
+            # Canvas blanco
+            canvas = np.full((300, 300, 3), 200, dtype=np.uint8)
+            x_offset = (300 - w) // 2
+            y_offset = (300 - h) // 2
 
-    # Generamos los otros mapas con esquemas de color
-    for i, cmap in enumerate(colormaps, start=1):
-        procesada = cv2.applyColorMap(gray, cmap)
-        salida = f"{salida_base}_mapa{i}.jpg"
-        cv2.imwrite(salida, procesada)
-        salidas.append(salida)
+            # Insertar imagen centrada
+            canvas[y_offset:y_offset + h, x_offset:x_offset + w] = img
+            cv2.imwrite(nuevo_path, canvas)
+            rutas_finales.append(nuevo_path)
+            print(f"[✔] Guardado sin pérdida: {nuevo_path}")
+        else:
+            print(f"[⚠] No se encontró: {original}")
 
-    return salidas
+    return rutas_finales

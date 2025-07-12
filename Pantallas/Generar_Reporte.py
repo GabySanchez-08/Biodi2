@@ -20,8 +20,8 @@ def generar_reporte_pdf(datos, ruta_salida=None):
     usuario_doc = db.collection("usuarios").document(capturado_por).get() if capturado_por != "offline" else None
     tecnico_data = usuario_doc.to_dict() if usuario_doc and usuario_doc.exists else {}
 
-    mapas_der = generar_mapa_topografico("ojo_derecho.jpg", "tmp_der") if os.path.exists("ojo_derecho.jpg") else []
-    mapas_izq = generar_mapa_topografico("ojo_izquierdo.jpg", "tmp_izq") if os.path.exists("ojo_izquierdo.jpg") else []
+    mapas_der = generar_mapa_topografico("ojo_derecho.jpg") if os.path.exists("ojo_derecho.jpg") else []
+    mapas_izq = generar_mapa_topografico("ojo_izquierdo.jpg") if os.path.exists("ojo_izquierdo.jpg") else []
 
     pdf = FPDF()
     pdf.add_page()
@@ -63,49 +63,49 @@ def generar_reporte_pdf(datos, ruta_salida=None):
     pdf.set_font("Arial", "", 12)
     pdf.multi_cell(0, 10, datos.get("observaciones", "Sin observaciones registradas."))
 
+
+    # === Agregar mapas de topografía corneal ===
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 11)
     pdf.cell(0, 8, "Análisis Topográfico Corneal", ln=True)
     pdf.ln(5)
 
-    # Organizar las imágenes en 2 filas y 2 columnas (2 por cada ojo)
-    posiciones = [(10, 70), (105, 70), (10, 160), (105, 160)]  # Coordenadas para las imágenes
+    # Coordenadas para las imágenes (2 filas, 2 columnas)
+    posiciones = [(10, 70), (105, 70), (10, 160), (105, 160)]  # x, y para cada una
+    mapas_der = [
+        "mapa_tangencial_derecho.jpg",
+        "mapa_diferencia_derecho.jpg"
+    ]
+    mapas_izq = [
+        "mapa_tangencial_izquierdo.jpg",
+        "mapa_diferencia_izquierdo.jpg"
+    ]
 
-    # Añadir las imágenes del ojo derecho
-    for i, mapa in enumerate(mapas_der[:2]):  # Solo 2 imágenes por ojo
+    # Función para insertar imagen o placeholder
+    def insertar_mapa(mapa_path, x, y, texto_fallback):
+        if os.path.exists(mapa_path):
+            with Image.open(mapa_path) as img:
+                img_w, img_h = img.size
+                max_w, max_h = 90, 90
+                ratio = min(max_w / img_w, max_h / img_h)
+                new_w = img_w * ratio
+                new_h = img_h * ratio
+                pdf.image(mapa_path, x=x, y=y, w=new_w, h=new_h)
+        else:
+            pdf.rect(x, y, 90, 90)
+            pdf.set_xy(x + 5, y + 40)
+            pdf.set_font("Arial", '', 10)
+            pdf.multi_cell(80, 5, texto_fallback, align="C")
+
+    # Insertar mapas del ojo derecho
+    for i, mapa in enumerate(mapas_der):
         x, y = posiciones[i]
-        if os.path.exists(mapa):
-            with Image.open(mapa) as img:
-                img_w, img_h = img.size
-                max_w = 90
-                max_h = 90
-                ratio = min(max_w / img_w, max_h / img_h)
-                new_w = img_w * ratio
-                new_h = img_h * ratio
-                pdf.image(mapa, x=x, y=y, w=new_w, h=new_h)
-        else:
-            pdf.rect(x, y, 90, 90)
-            pdf.set_xy(x + 30, y + 40)
-            pdf.set_font("Arial", '', 10)
-            pdf.cell(30, 10, f"Mapa {i+1}", align="C")
+        insertar_mapa(mapa, x, y, f"Mapa derecho {i+1}\n(No disponible)")
 
-    # Añadir las imágenes del ojo izquierdo
-    for i, mapa in enumerate(mapas_izq[:2]):  # Solo 2 imágenes por ojo
-        x, y = posiciones[i + 2]  # Usar las siguientes posiciones
-        if os.path.exists(mapa):
-            with Image.open(mapa) as img:
-                img_w, img_h = img.size
-                max_w = 90
-                max_h = 90
-                ratio = min(max_w / img_w, max_h / img_h)
-                new_w = img_w * ratio
-                new_h = img_h * ratio
-                pdf.image(mapa, x=x, y=y, w=new_w, h=new_h)
-        else:
-            pdf.rect(x, y, 90, 90)
-            pdf.set_xy(x + 30, y + 40)
-            pdf.set_font("Arial", '', 10)
-            pdf.cell(30, 10, f"Mapa {i+3}", align="C")
+    # Insertar mapas del ojo izquierdo
+    for i, mapa in enumerate(mapas_izq):
+        x, y = posiciones[i + 2]
+        insertar_mapa(mapa, x, y, f"Mapa izquierdo {i+1}\n(No disponible)")
 
     pdf.ln(5)
     pdf.set_font("Arial", '', 10)
@@ -148,4 +148,4 @@ def generar_reporte_pdf(datos, ruta_salida=None):
             print(f"[ERROR] No se pudo enviar el correo: {e}")
         
 
-    os.remove(path_pdf)
+    #os.remove(path_pdf)
