@@ -106,14 +106,25 @@ def generar_reporte_pdf(datos, ruta_salida=None):
     insertar_mapa_par("mapa_tangencial_derecho.jpg", "Tangencial (Ojo Derecho)",
                       "mapa_diferencia_derecho.jpg", "Diferencia (Ojo Derecho)")
 
+    # Eliminar mapas del ojo derecho
+    for f in ["mapa_tangencial_derecho.jpg", "mapa_diferencia_derecho.jpg"]:
+        if os.path.exists(f):
+            os.remove(f)
+
     if not df_derecho.empty:
         pdf.set_font("Times", "B", 12)
-        pdf.cell(0, 10, "Parámetros cuantitativos (Ojo Derecho)", ln=True)
-        pdf.set_font("DejaVu", "", 11)
-        col_widths = [100, 40]
+        pdf.cell(0, 10, "Parámetros cuantitativos (Ojo Derecho)", ln=True, align="C")
+
+        pdf.set_font("DejaVu", "", 9)
+        col_widths = [90, 40]
+        total_width = sum(col_widths)
+        x_centro = (210 - total_width) / 2  # A4 width = 210mm
+
         for index, row in df_derecho.iterrows():
-            pdf.cell(col_widths[0], 8, limpiar_texto(row["Parámetro"]), border=1)
-            pdf.cell(col_widths[1], 8, limpiar_texto(str(row["Valor"])), border=1, ln=True)
+            pdf.set_x(x_centro)
+            pdf.cell(col_widths[0], 7, limpiar_texto(row["Parámetro"]), border=1, align='C')
+            pdf.cell(col_widths[1], 7, limpiar_texto(str(row["Valor"])), border=1, ln=True, align='C')
+
         pdf.ln(5)
         pdf.set_font("Times", "", 12)
 
@@ -123,13 +134,21 @@ def generar_reporte_pdf(datos, ruta_salida=None):
     insertar_mapa_par("mapa_tangencial_izquierdo.jpg", "Tangencial (Ojo Izquierdo)",
                       "mapa_diferencia_izquierdo.jpg", "Diferencia (Ojo Izquierdo)")
 
+    # Eliminar mapas del ojo izquierdo
+    for f in ["mapa_tangencial_izquierdo.jpg", "mapa_diferencia_izquierdo.jpg"]:
+        if os.path.exists(f):
+            os.remove(f)
+            
     if not df_izquierdo.empty:
         pdf.set_font("Times", "B", 12)
-        pdf.cell(0, 10, "Parámetros cuantitativos (Ojo Izquierdo)", ln=True)
-        pdf.set_font("DejaVu", "", 11)
+        pdf.cell(0, 10, "Parámetros cuantitativos (Ojo Izquierdo)", ln=True, align="C")
+
+        pdf.set_font("DejaVu", "", 9)
         for index, row in df_izquierdo.iterrows():
-            pdf.cell(col_widths[0], 8, limpiar_texto(row["Parámetro"]), border=1)
-            pdf.cell(col_widths[1], 8, limpiar_texto(str(row["Valor"])), border=1, ln=True)
+            pdf.set_x(x_centro)
+            pdf.cell(col_widths[0], 7, limpiar_texto(row["Parámetro"]), border=1, align='C')
+            pdf.cell(col_widths[1], 7, limpiar_texto(str(row["Valor"])), border=1, ln=True, align='C')
+
         pdf.ln(5)
         pdf.set_font("Times", "", 12)
 
