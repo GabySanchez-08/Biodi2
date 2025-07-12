@@ -379,13 +379,21 @@ def generar_mapas_y_sacar_numeros(image_path, output_path1="mapa_diferencia.jpg"
     norm = Normalize(vmin=-5, vmax=25)
 
     # --- Paso 5: Visualización ---
-    plt.figure(figsize=(8, 6))
-    plt.imshow(delta_zq, extent=(xq.min(), xq.max(), yq.min(), yq.max()),
-               origin='lower', cmap=cmap_custom, norm=norm, aspect='equal')
-    plt.colorbar(label='Δz reconstruido - ideal (μm)')
-    plt.title("Mapa de Calor de Diferencia (Reconstrucción - Esfera Ideal)")
-    plt.xlabel("X (cm)")
-    plt.ylabel("Y (cm)")
+    plt.figure(figsize=(5, 5))  # cuadrado
+    ax1 = plt.gca()
+    ax1.set_aspect('equal')
+
+    img = ax1.imshow(
+        delta_zq,
+        extent=(xq.min(), xq.max(), yq.min(), yq.max()),
+        origin='lower',
+        cmap=cmap_custom,
+        norm=norm
+    )
+    plt.colorbar(img, ax=ax1, label='Δz reconstruido - ideal (μm)')
+    ax1.set_title("Mapa de Diferencia")
+    ax1.set_xlabel("X (cm)")
+    ax1.set_ylabel("Y (cm)")
     plt.tight_layout()
     plt.savefig(output_path1, dpi=300)
     plt.close()
@@ -410,6 +418,8 @@ def generar_mapas_y_sacar_numeros(image_path, output_path1="mapa_diferencia.jpg"
 
     X_all, Y_all, Z_all = [], [], []
     fig2, ax2 = plt.subplots(figsize=(5, 5))
+    ax2.set_aspect('equal')
+    
     for meridiano, datos in curvaturas.items():
         angulo_deg = int(meridiano.replace("df_", ""))
         y = datos["y"]
@@ -430,9 +440,12 @@ def generar_mapas_y_sacar_numeros(image_path, output_path1="mapa_diferencia.jpg"
     Zgrid = median_filter(Zgrid, size=4)
     contour = ax2.contourf(Xgrid, Ygrid, Zgrid, levels=np.linspace(0, 90, 20), cmap='jet')
     plt.colorbar(contour, ax=ax2, label="Potencia tangencial [D]")
-    ax2.set_title("Tangential curvature (Front)")
+    ax2.set_title("Curvatura Tangencial (Frente)")
     ax2.set_xlabel("X [mm]")
     ax2.set_ylabel("Y [mm]")
-    ax2.axis('equal')
+    ax2.set_aspect('equal')
+    plt.tight_layout()
     plt.savefig(output_path2, dpi=300)
+    plt.close()
+
     return Zgrid, delta_zq

@@ -20,8 +20,8 @@ def generar_reporte_pdf(datos, ruta_salida=None):
     usuario_doc = db.collection("usuarios").document(capturado_por).get() if capturado_por != "offline" else None
     tecnico_data = usuario_doc.to_dict() if usuario_doc and usuario_doc.exists else {}
 
-    mapas_der = generar_mapa_topografico("ojo_derecho.jpg") if os.path.exists("ojo_derecho.jpg") else []
-    mapas_izq = generar_mapa_topografico("ojo_izquierdo.jpg") if os.path.exists("ojo_izquierdo.jpg") else []
+    generar_mapa_topografico("ojo_derecho.jpg") if os.path.exists("ojo_derecho.jpg") else []
+    generar_mapa_topografico("ojo_izquierdo.jpg") if os.path.exists("ojo_izquierdo.jpg") else []
 
     pdf = FPDF()
     pdf.add_page()
@@ -63,51 +63,38 @@ def generar_reporte_pdf(datos, ruta_salida=None):
     pdf.set_font("Arial", "", 12)
     pdf.multi_cell(0, 10, datos.get("observaciones", "Sin observaciones registradas."))
 
-
     # === Agregar mapas de topografía corneal ===
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 11)
     pdf.cell(0, 8, "Análisis Topográfico Corneal", ln=True)
     pdf.ln(5)
 
-    # Coordenadas para las imágenes (2 filas, 2 columnas)
-    posiciones = [(10, 70), (105, 70), (10, 160), (105, 160)]  # x, y para cada una
-    mapas_der = [
-        "mapa_tangencial_derecho.jpg",
-        "mapa_diferencia_derecho.jpg"
-    ]
-    mapas_izq = [
-        "mapa_tangencial_izquierdo.jpg",
-        "mapa_diferencia_izquierdo.jpg"
-    ]
-
-    # Función para insertar imagen o placeholder
-    def insertar_mapa(mapa_path, x, y, texto_fallback):
+    # Función para insertar mapa en flujo vertical
+    def insertar_mapa_en_fila(mapa_path, label):
+        pdf.set_font("Arial", "B", 11)
+        pdf.cell(0, 10, label, ln=True)
         if os.path.exists(mapa_path):
             with Image.open(mapa_path) as img:
                 img_w, img_h = img.size
-                max_w, max_h = 90, 90
+                max_w, max_h = 180, 90
                 ratio = min(max_w / img_w, max_h / img_h)
                 new_w = img_w * ratio
                 new_h = img_h * ratio
-                pdf.image(mapa_path, x=x, y=y, w=new_w, h=new_h)
+                pdf.image(mapa_path, w=new_w, h=new_h)
         else:
-            pdf.rect(x, y, 90, 90)
-            pdf.set_xy(x + 5, y + 40)
-            pdf.set_font("Arial", '', 10)
-            pdf.multi_cell(80, 5, texto_fallback, align="C")
+            pdf.set_fill_color(255, 255, 255)
+            pdf.set_draw_color(0, 0, 0)
+            pdf.cell(180, 90, f"{label} (No disponible)", border=1, ln=True, align="C")
+        pdf.ln(5)
 
-    # Insertar mapas del ojo derecho
-    for i, mapa in enumerate(mapas_der):
-        x, y = posiciones[i]
-        insertar_mapa(mapa, x, y, f"Mapa derecho {i+1}\n(No disponible)")
+    # Insertar mapas derecho
+    insertar_mapa_en_fila("mapa_tangencial_derecho.jpg", "Mapa Tangencial (Ojo Derecho)")
+    insertar_mapa_en_fila("mapa_diferencia_derecho.jpg", "Mapa de Diferencia (Ojo Derecho)")
 
-    # Insertar mapas del ojo izquierdo
-    for i, mapa in enumerate(mapas_izq):
-        x, y = posiciones[i + 2]
-        insertar_mapa(mapa, x, y, f"Mapa izquierdo {i+1}\n(No disponible)")
+    # Insertar mapas izquierdo
+    insertar_mapa_en_fila("mapa_tangencial_izquierdo.jpg", "Mapa Tangencial (Ojo Izquierdo)")
+    insertar_mapa_en_fila("mapa_diferencia_izquierdo.jpg", "Mapa de Diferencia (Ojo Izquierdo)")
 
-    pdf.ln(5)
     pdf.set_font("Arial", '', 10)
     pdf.multi_cell(0, 6, "Este informe es un preanálisis basado en los datos topográficos capturados. La interpretación médica debe considerar los hallazgos visuales junto con estos resultados, evaluando signos sugestivos de queratocono como el aumento de la curvatura, desplazamiento inferior del punto más delgado y asimetría corneal.")
 
@@ -138,7 +125,7 @@ def generar_reporte_pdf(datos, ruta_salida=None):
             f"Unidad de Diagnóstico Corneal\n"
             f"Centro de Salud Visual"
         )
-        
+
         try:
             with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
                 smtp.login(remitente, clave)
@@ -146,6 +133,3 @@ def generar_reporte_pdf(datos, ruta_salida=None):
             print("[INFO] Correo enviado exitosamente.")
         except Exception as e:
             print(f"[ERROR] No se pudo enviar el correo: {e}")
-        
-
-    #os.remove(path_pdf)

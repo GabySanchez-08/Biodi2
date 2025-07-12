@@ -17,3 +17,5 @@ generar_reporte_pdf(datos_prueba, ruta_salida="reporte_prueba.pdf")
 print("✅ PDF generado como reporte_prueba.pdf")
 import os
 print("📂 Directorio actual:", os.getcwd())
+
+##
