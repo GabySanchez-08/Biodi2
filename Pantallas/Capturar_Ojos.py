@@ -12,11 +12,11 @@ class Capturar_Ojos(Base_App):
     def __init__(self, page, usuario=None, rol=None):
         super().__init__(page, usuario, rol)
         self.mostrando_todos = False
-        self.zoom_muestra = 1.0
         self.imagen_original = None
         self.auto_captura_activada = False
         self.historial_alineacion = []
-
+        self.recorte_frame = 0.7 # Este es el zoom/recorte que se le hace al frame para que se vea de más cerca
+        self.radio_guia = 150
     def mostrar(self):
         self.limpiar()
 
@@ -32,17 +32,6 @@ class Capturar_Ojos(Base_App):
             fit=ft.ImageFit.CONTAIN  # mantener proporciones sin deformar
         )
 
-        self.zoom_slider_preview = ft.Slider(
-            min=1.0,
-            max=2.0,
-            divisions=10,
-            label="Zoom de vista",
-            on_change=self.zoom_muestra_changed,
-            value=1.0,
-            visible=False,
-            width=1200
-        )
-
         self.titulo_ojos = ft.Text("Capturando ojo derecho", size=20, weight="bold")
         self.estado = ft.Text("Imagen actual del ojo derecho", size=16, weight="bold")
 
@@ -51,15 +40,6 @@ class Capturar_Ojos(Base_App):
             options=[ft.dropdown.Option(str(i)) for i in self.available_cameras],
             value=str(self.camera_index),
             on_change=self.cambiar_camara
-        )
-
-        self.zoom_slider = ft.Slider(
-            min=100, max=120, divisions=1,
-            label="Zoom",
-            on_change=self.cambiar_zoom,
-            value=100,
-            width=1200,
-            visible=False
         )
 
         self.focus_slider = ft.Slider(
@@ -94,8 +74,6 @@ class Capturar_Ojos(Base_App):
                         self.titulo_ojos,
                         self.dropdown_camaras,
                         self.imagen_preview,
-                        self.zoom_slider_preview,
-                        #self.zoom_slider,
                         self.focus_slider,
                         self.estado,
                         self.botones
@@ -149,96 +127,90 @@ class Capturar_Ojos(Base_App):
         
         # Iniciar flujo de video
         self.stream_running = True
-        #self.zoom_slider.visible = True
         self.focus_slider.visible = True
         self.page.update()
         self.page.run_task(self.actualizar_stream)
 
+
+    def obtener_marco_limites(self, ret, frame):
+        h, w, _ = frame.shape
+        side = int(min(h, w) * self.recorte_frame)
+        y0 = (h - side) // 2
+        x0 = (w - side) // 2
+        frame_crop = frame[y0:y0 + side, x0:x0 + side]
+         
+        # Centro del círculo guía
+        cx = side // 2
+        cy = side // 2
+
+        # Coordenadas del recorte
+        x1 = max(cx - self.radio_guia, 0)
+        y1 = max(cy - self.radio_guia, 0)
+        x2 = min(cx + self.radio_guia, side)
+        y2 = min(cy + self.radio_guia, side)
+
+        # Recortar el ROI exacto alrededor del círculo ESTA ES LA IMAGEN A USAR
+        roi = frame_crop[y1:y2, x1:x2]
+
+        return (frame_crop,roi)  
+
+
     async def actualizar_stream(self):
         lado = 24
         while self.stream_running:
-            #print("whileok")
             ret, frame = self.cap.read()
             if ret and not self.captura_realizada:
-                #print("entro al if de ret")
-                h, w, _ = frame.shape
-                # lado del cuadrado = 70% del menor de los dos
-                side = int(min(h, w) * 0.7)
-                y0 = (h - side) // 2
-                x0 = (w - side) // 2
-                frame_crop = frame[y0:y0 + side, x0:x0 + side]
+                frame_crop,roi_ojo = self.obtener_marco_limites(ret, frame)
+                frame_mostrar = frame_crop.copy()   
 
-                frame_mostrar = frame_crop.copy()  # copia solo para mostrar
+                resultado_patron = self.detectar_patron(frame_crop)
+                if resultado_patron:
+                    cx_patron, cy_patron, r_patron = resultado_patron
+                else:
+                    cx_patron = cy_patron = r_patron = None
 
-                resultado = self.detectar_patron_e_iris(frame_crop)
-                #resultado = 0
-                if resultado:
-                    print("entro al if de resultado")
-                    cx_patron, cy_patron, r_patron, cx_iris, cy_iris, r_iris, roi_img, (x1, y1, x2, y2) = resultado
-                    # Ajustar coordenadas al sistema de frame_crop si este proviene de un recorte
-
-                    # === Dibujo SOLO en frame_mostrar ===
-                    # Marco rojo de ROI
-                    cv2.rectangle(frame_mostrar, (x1, y1), (x2, y2), (0, 0, 255), 2)  ##Rectangulo ROI rojo
-                    # Cruces en centros
-                    #cruz verde  al centro del patron
-                    cv2.drawMarker(frame_mostrar, (cx_patron, cy_patron), (0, 255, 0), markerType=cv2.MARKER_CROSS, markerSize=15, thickness=2)
+                resultado_iris = None
+                if resultado_patron:
+                    resultado_iris = self.detectar_iris(frame_crop, cx_patron, cy_patron, r_patron)
+                else:
+                    # Si no hay patrón, intenta estimar el centro de la imagen como base
+                    h_crop, w_crop = frame_crop.shape[:2]
+                    cx_estimado, cy_estimado = w_crop // 2, h_crop // 2
                     
-                    ##cruz  azul al centro del iris
-                    cv2.drawMarker(frame_mostrar, (cx_iris, cy_iris), (255, 0, 0), markerType=cv2.MARKER_CROSS, markerSize=15, thickness=2)
-                    # Círculo del patrón (verde)
-                    cv2.circle(frame_mostrar, (cx_patron, cy_patron), r_patron, (0, 255, 0), 2)
-                    # Círculo del iris (azul)
+                    resultado_iris = self.detectar_iris(frame_crop, cx_estimado, cy_estimado, self.radio_guia)
+
+                if resultado_iris:
+                    cx_iris, cy_iris, r_iris, roi_img = resultado_iris
+
+                    # --- DIBUJAR ---
+                    cv2.drawMarker(frame_mostrar, (cx_iris, cy_iris), (255, 0, 0),
+                                markerType=cv2.MARKER_CROSS, markerSize=15, thickness=2)
                     cv2.circle(frame_mostrar, (cx_iris, cy_iris), r_iris, (255, 0, 0), 2)
+                    
 
-                    # Recortar la región del ROI (el rectángulo rojo)
-                    roi_capturada = frame_crop[y1:y2, x1:x2]  # Recorta la imagen usando las coordenadas del ROI
+                    if resultado_patron:
+                        cv2.drawMarker(frame_mostrar, (cx_patron, cy_patron), (0, 255, 0),
+                                    markerType=cv2.MARKER_CROSS, markerSize=15, thickness=2)
+                        cv2.circle(frame_mostrar, (cx_patron, cy_patron), r_patron, (0, 255, 0), 2)
 
-                    # Captura automática si está alineado
-                    # Verificar alineación
-                    delta = np.linalg.norm([cx_patron - cx_iris, cy_patron - cy_iris])
-                    self.historial_alineacion.append(delta)
-                    if len(self.historial_alineacion) > 15:
-                        self.historial_alineacion.pop(0)
+                        # === Evaluar alineación ===
+                        delta = np.linalg.norm([cx_patron - cx_iris, cy_patron - cy_iris])
+                        self.historial_alineacion.append(delta)
+                        if len(self.historial_alineacion) > 15:
+                            self.historial_alineacion.pop(0)
 
-                    # Requiere al menos 8 frames consecutivos dentro del umbral
-                    if self.auto_captura_activada and all(d < 10 for d in self.historial_alineacion[-4:]):
-                        print("🟢 Estable y alineado. Tomando ráfaga de imágenes…")
+                        if self.auto_captura_activada and all(d < 10 for d in self.historial_alineacion[-4:]):
+                            print("🟢 Estable y alineado. Tomando ráfaga de imágenes…")
+                            self.capturar
+                            break
 
-                        # 2) Captura una ráfaga de 5 frames recortados
-                        candidatos = []
-                        for _ in range(5):
-                            ret2, f2 = self.cap.read()
-                            if not ret2:
-                                continue
-                            # Recorta cuadrado igual que arriba
-                            side2 = int(min(*f2.shape[:2]) * 0.7)
-                            y02 = (f2.shape[0] - side2) // 2
-                            x02 = (f2.shape[1] - side2) // 2
-                            crop2 = f2[y02:y02 + side2, x02:x02 + side2]
-                            candidatos.append(crop2)
-
-                        # 3) Escoge el más nítido
-                        mejor = max(candidatos, key=lambda im: self.sharpness(im))
-                        roi_capturada = mejor[y1:y2, x1:x2]  # Recorta la imagen usando las coordenadas del ROI
-
-                        # 4) Guarda solo el ROI recortado y procesado
-                        nombre = "ojo_derecho.jpg" if self.escaneando_derecho else "ojo_izquierdo.jpg"
-                        cv2.imwrite(nombre, roi_capturada)  # Guarda solo el ROI recortado
-                        self.procesar_post_captura(roi_capturada)  # Procesa la imagen recortada
-                        self.mostrar_mensaje_exito("¡Captura nítida del ROI realizada!")
-                        break
-                    #else:
-                        #print(f"🔶 Desalineado o inestable. Δ={delta:.2f}")
-                # Líneas guía fijas
+                # Guías fijas
                 height, width, _ = frame_crop.shape
                 cx_fixed, cy_fixed = width // 2, height // 2
+                self.radio_guia = 150
+                cv2.circle(frame_mostrar, (cx_fixed, cy_fixed), self.radio_guia, (0, 0, 255), 2)
                 cv2.line(frame_mostrar, (0, cy_fixed), (width, cy_fixed), (0, 0, 255), 2)  ##lineas rojas
                 cv2.line(frame_mostrar, (cx_fixed, 0), (cx_fixed, height), (0, 0, 255), 2)
-                cv2.rectangle(frame_mostrar,
-                              (cx_fixed - lado // 2, cy_fixed - lado // 2),
-                              (cx_fixed + lado // 2, cy_fixed + lado // 2),
-                              (0, 0, 255), 2)
 
                 # Mostrar en interfaz
                 _, buf = cv2.imencode(".jpg", frame_mostrar)
@@ -247,45 +219,41 @@ class Capturar_Ojos(Base_App):
                 self.page.update()
 
             await asyncio.sleep(0.05)
+
             
+
     def capturar(self, e):
-        if self.cap.isOpened():
-            ret, frame = self.cap.read()
-            if ret:
-                h, w, _ = frame.shape
-                side = int(min(h, w) * 0.7)
-                y0 = (h - side) // 2
-                x0 = (w - side) // 2
-                frame = frame[y0:y0 + side, x0:x0 + side]
-                kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-                #frame = cv2.filter2D(frame, -1, kernel)
-
-                filename = "ojo_derecho.jpg" if self.escaneando_derecho else "ojo_izquierdo.jpg"
-                cv2.imwrite(filename, frame)
-                self.procesar_post_captura(frame)
-
-    def aplicar_zoom_muestra(self):
-        if self.imagen_original is None:
+        if not self.cap.isOpened():
             return
+        candidatos = []
+        puntajes = []
 
-        frame = self.imagen_original.copy()
-        h, w, _ = frame.shape
+        for i in range(15):
+            ret, frame = self.cap.read()
+            if not ret:
+                continue
 
-        zoom_factor = self.zoom_muestra
-        zoom_h = int(h / zoom_factor)
-        zoom_w = int(w / zoom_factor)
+            frame_crop, roi_ojo = self.obtener_marco_limites(ret, frame)
 
-        start_y = (h - zoom_h) // 2
-        start_x = (w - zoom_w) // 2
+            nombre_candidata = f"candidata{i+1}.jpg"
+            cv2.imwrite(nombre_candidata, roi_ojo)
 
-        frame_zoom = frame[start_y:start_y + zoom_h, start_x:start_x + zoom_w]
-        frame_zoom = cv2.resize(frame_zoom, (600, 600), interpolation=cv2.INTER_LINEAR)
+            score = self.sharpness(roi_ojo)
+            puntajes.append(score)
+            candidatos.append(roi_ojo)
 
-        _, buf = cv2.imencode(".jpg", frame_zoom)
-        img_base64 = buf.tobytes()
-        self.imagen_preview.src_base64 = base64.b64encode(img_base64).decode("utf-8")
-        self.page.update()
+            print(f"[🔍] Nitidez de {nombre_candidata}: {score:.2f}")
 
+        if candidatos:
+            indice_mejor = puntajes.index(max(puntajes))
+            mejor = candidatos[indice_mejor]
+            nombre_mejor = f"candidata{indice_mejor+1}.jpg"
+            print(f"[✅] Imagen más nítida: {nombre_mejor} con puntaje {puntajes[indice_mejor]:.2f}")
+
+            filename = "ojo_derecho.jpg" if self.escaneando_derecho else "ojo_izquierdo.jpg"
+            cv2.imwrite(filename, mejor)
+
+            self.procesar_post_captura(mejor)
 
     def borrar(self, e):
         ojo = "ojo_derecho.jpg" if self.escaneando_derecho else "ojo_izquierdo.jpg"
@@ -293,9 +261,6 @@ class Capturar_Ojos(Base_App):
             os.remove(ojo)
 
         self.captura_realizada = False
-        self.zoom_slider_preview.visible = False
-        self.zoom_muestra = 1.0
-        #self.zoom_slider.visible = True
         self.focus_slider.visible = True
         self.imagen_original = None
         self.imagen_preview.width = 600
@@ -326,22 +291,13 @@ class Capturar_Ojos(Base_App):
         self.imagen_preview.src_base64 = base64.b64encode(img_base64).decode("utf-8")
 
         self.captura_realizada = True
-        #self.zoom_slider_preview.visible = True
         self.actualizar_textos()
         self.borrar_btn.disabled = False
         self.capturar_btn.disabled = True
+        self.activar_auto_btn.disabled = True
         self.continuar_btn.disabled = False
-        #self.zoom_slider.visible = False
         self.focus_slider.visible = False
         self.page.update()
-
-
-    def cambiar_zoom(self, e):
-        if hasattr(self, 'cap') and self.cap.isOpened():
-            if not self.cap.set(cv2.CAP_PROP_ZOOM, self.zoom_slider.value):
-                print("[ERROR] No se pudo cambiar el zoom")
-            valor_actual = self.cap.get(cv2.CAP_PROP_ZOOM)
-            print(f"[INFO] Zoom actual: {valor_actual}")
 
     def cambiar_enfoque(self, e):
         if hasattr(self, 'cap') and self.cap.isOpened():
@@ -349,11 +305,6 @@ class Capturar_Ojos(Base_App):
                 print("[ERROR] No se pudo cambiar el enfoque")
             valor_actual = self.cap.get(cv2.CAP_PROP_FOCUS)
             print(f"[INFO] Enfoque actual: {valor_actual}")
-
-
-    def zoom_muestra_changed(self, e):
-        self.zoom_muestra = e.control.value
-        self.aplicar_zoom_muestra()
 
     def cambiar_ojo(self, e):
         self.escaneando_derecho = not self.escaneando_derecho
@@ -364,12 +315,9 @@ class Capturar_Ojos(Base_App):
         if os.path.exists(path):
             frame = cv2.imread(path)
             self.imagen_original = frame.copy()
-            self.aplicar_zoom_muestra()
-            self.zoom_slider_preview.visible = True
             self.captura_realizada = True
             self.borrar_btn.disabled = False
             self.capturar_btn.disabled = True
-            #self.zoom_slider.visible = False
             self.focus_slider.visible = False
 
         else:
@@ -398,19 +346,9 @@ class Capturar_Ojos(Base_App):
         self.stream_running = False
         if hasattr(self, 'cap') and self.cap.isOpened():
             self.cap.release()
-        self.zoom_slider.visible = False
         self.focus_slider.visible = False
         self.page.update()
     
-    def mostrar_mensaje_exito(self, texto):
-        dlg = ft.AlertDialog(
-            title=ft.Text(texto, text_align="center", size=18),
-            actions=[ft.TextButton("Aceptar", on_click=lambda e: self.page.dialog.close())]
-        )
-        self.page.dialog = dlg
-        dlg.open = True
-        self.page.update()
-
     def actualizar_textos(self):
         ojo = "derecho" if self.escaneando_derecho else "izquierdo"
         self.titulo_ojos.value = f"Capturando ojo {ojo}"
@@ -420,93 +358,93 @@ class Capturar_Ojos(Base_App):
         factor = 256 // niveles
         return (imagen_gray // factor) * factor
 
-    def detectar_patron_e_iris(self, frame):
-        if frame is None or not isinstance(frame, np.ndarray) or frame.size == 0:
-            print("no llega imagen")
-            return None
+    def detectar_patron(self, frame):
+        h, w = frame.shape[:2]
+        cx_fixed, cy_fixed = w // 2, h // 2
+        radio_guia = 160
 
-        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        
+        mask = np.zeros((h, w), dtype=np.uint8)
+        cv2.circle(mask, (cx_fixed, cy_fixed), radio_guia, 255, -1)
+        frame_masked = cv2.bitwise_and(frame, frame, mask=mask)
+        green = frame_masked[:, :, 1]
+        gray = cv2.cvtColor(frame_masked, cv2.COLOR_BGR2GRAY)
         gray_eq = cv2.equalizeHist(gray)
         gray_reducida = self.reducir_grises(gray_eq, 8)
 
-        green = frame[:, :, 1]
         blur = cv2.GaussianBlur(green, (5, 5), 1.0)
-        binary = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 11, 7)
+        binary = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+                                        cv2.THRESH_BINARY_INV, 11, 7)
         contornos, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
+
         puntos = []
         for c in contornos:
             area = cv2.contourArea(c)
             if 5 < area < 100:
                 perimetro = cv2.arcLength(c, True)
-                circularidad = 4 * np.pi * area / (perimetro ** 2 + 1e-6)
+                circularidad = 4 * np.pi * area / (perimetro**2 + 1e-6)
                 if 0.6 < circularidad < 1.3:
                     M = cv2.moments(c)
                     if M["m00"] != 0:
                         cx = int(M["m10"] / M["m00"])
                         cy = int(M["m01"] / M["m00"])
-                        puntos.append((cx, cy))
+                        if mask[cy, cx] == 255:
+                            puntos.append((cx, cy))
 
-        if not puntos:
-            #print("❌ No se detectaron puntos del patrón.")
-            return None
-            
-        puntos_filtrados = puntos
-        #[(x, y) for (x, y) in puntos if np.sqrt((x - cx_patron)**2 + (y - cy_patron)**2) < 1.05 * r_patron]
-
-        if len(puntos_filtrados) < 5:
-            #print("❌ Muy pocos puntos dentro del patrón, verifique iluminación.")
+        if len(puntos) < 5:
             return None
 
-        xs, ys = zip(*puntos_filtrados)
+        xs, ys = zip(*puntos)
         cx_patron = int(np.mean(xs))
         cy_patron = int(np.mean(ys))
-        radios = [np.sqrt((x - cx_patron)**2 + (y - cy_patron)**2) for (x, y) in puntos_filtrados]
-        r_patron = int(1.2*np.mean(radios))
+        radios = [np.sqrt((x - cx_patron)**2 + (y - cy_patron)**2) for (x, y) in puntos]
+        r_patron = int(1.2 * np.mean(radios))
 
-        roi_r = int(1.05 * r_patron)
+        return (cx_patron, cy_patron, r_patron)
+
+    def detectar_iris(self, frame, cx_patron, cy_patron, r_patron):
         h, w = frame.shape[:2]
-        margin = 20  # píxeles extra por cada lado
-        x1 = max(cx_patron - roi_r - margin, 0)
-        y1 = max(cy_patron - roi_r - margin, 0)
-        x2 = min(cx_patron + roi_r + margin, w)
-        y2 = min(cy_patron + roi_r + margin, h)
-        coords_roi = (x1, y1, x2, y2)
-        roi_img = frame[y1:y2, x1:x2]
+        
+        radio_busqueda = int(2.0 * 160)  # 200% del radio guía
+        x1 = max(cx_patron - radio_busqueda, 0)
+        y1 = max(cy_patron - radio_busqueda, 0)
+        x2 = min(cx_patron + radio_busqueda, w)
+        y2 = min(cy_patron + radio_busqueda, h)
 
-        roi_gray = gray_reducida[y1:y2, x1:x2]
-        _, mask = cv2.threshold(roi_gray, 70, 255, cv2.THRESH_BINARY_INV)
-        contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        roi_iris = frame[y1:y2, x1:x2]
+        gray = cv2.cvtColor(roi_iris, cv2.COLOR_BGR2GRAY)
+        gray_eq = cv2.equalizeHist(gray)
+        gray_reducida = self.reducir_grises(gray_eq, 8)
 
-        mejor_contorno = None
+        _, mask_iris = cv2.threshold(gray_reducida, 70, 255, cv2.THRESH_BINARY_INV)
+        contornos, _ = cv2.findContours(mask_iris, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
         mejor_radio = 0
+        mejor_contorno = None
         cx_iris, cy_iris = None, None
 
         for c in contornos:
             area = cv2.contourArea(c)
             if area > 300:
                 (x, y), radius = cv2.minEnclosingCircle(c)
-                circularidad = 4 * np.pi * area / (cv2.arcLength(c, True) ** 2 + 1e-6)
-                if 0.4 < circularidad < 1.2 and 20 < radius < 200 and radius > mejor_radio:
-                    mejor_contorno = c
-                    mejor_radio = radius
-                    cx_iris, cy_iris = int(x), int(y)
+                circularidad = 4 * np.pi * area / (cv2.arcLength(c, True)**2 + 1e-6)
+                if 0.4 < circularidad < 1.2:
+                    if 0.8 * r_patron < radius < 1.2 * r_patron and radius > mejor_radio:
+                        mejor_radio = radius
+                        mejor_contorno = c
+                        cx_iris, cy_iris = int(x), int(y)
 
         if mejor_contorno is not None:
             cx_abs = cx_iris + x1
             cy_abs = cy_iris + y1
             r_abs = int(mejor_radio)
-            return (cx_patron, cy_patron, r_patron, cx_abs, cy_abs, r_abs, roi_img, coords_roi)
+            return (cx_abs, cy_abs, r_abs, roi_iris)
         else:
-            #print("❌ No se detectó el iris")
             return None
-
-
+    
     def activar_captura_automatica(self, e):
         self.auto_captura_activada = True
         self.activar_auto_btn.disabled = True
+        #self.capturar_btn.disabled = True
         self.page.update()
 
     def calentar_camara(self):
