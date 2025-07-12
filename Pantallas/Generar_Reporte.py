@@ -7,6 +7,15 @@ from PIL import Image
 import smtplib
 from email.message import EmailMessage
 
+def limpiar_texto(texto):
+    if not isinstance(texto, str):
+        texto = str(texto)
+    return (
+        texto.replace("μ", "μ")
+             .replace("–", "-")
+             .replace("—", "-")
+    )
+
 def generar_reporte_pdf(datos, ruta_salida=None):
     dni = datos.get("dni")
     fecha = datos.get("fecha_registro")
@@ -20,25 +29,28 @@ def generar_reporte_pdf(datos, ruta_salida=None):
     usuario_doc = db.collection("usuarios").document(capturado_por).get() if capturado_por != "offline" else None
     tecnico_data = usuario_doc.to_dict() if usuario_doc and usuario_doc.exists else {}
 
-    generar_mapa_topografico("ojo_derecho.jpg") if os.path.exists("ojo_derecho.jpg") else []
-    generar_mapa_topografico("ojo_izquierdo.jpg") if os.path.exists("ojo_izquierdo.jpg") else []
+    df_derecho = generar_mapa_topografico("ojo_derecho.jpg") if os.path.exists("ojo_derecho.jpg") else []
+    df_izquierdo = generar_mapa_topografico("ojo_izquierdo.jpg") if os.path.exists("ojo_izquierdo.jpg") else []
 
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font("Arial", "B", 16)
+
+    pdf.add_font('DejaVu', '', 'fonts/DejaVuSans.ttf', uni=True)
+
+    pdf.set_font("Times", "B", 16)
     pdf.cell(0, 10, "REPORTE DE EVALUACIÓN CORNEAL", ln=True, align="C")
     pdf.ln(5)
 
     pdf.set_fill_color(240, 240, 240)
-    pdf.set_font("Arial", "B", 13)
+    pdf.set_font("Times", "B", 14)
     pdf.cell(0, 10, "Datos del paciente", ln=True, fill=True)
 
     def campo(label, valor):
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(45, 10, f"{label}:", ln=False)
-        pdf.set_font("Arial", "", 12)
-        pdf.cell(0, 10, f"{valor}", ln=True)
+        pdf.set_font("Times", "B", 12)
+        pdf.cell(45, 8, f"{label}:", ln=False)
+        pdf.set_font("Times", "", 12)
+        pdf.cell(0, 8, f"{valor}", ln=True)
 
     campo("Nombre", f"{paciente_data.get('nombre', '')} {paciente_data.get('apellido', '')}")
     campo("DNI", dni)
@@ -49,7 +61,7 @@ def generar_reporte_pdf(datos, ruta_salida=None):
     campo("Correo", paciente_data.get("correo_contacto", ""))
 
     pdf.ln(5)
-    pdf.set_font("Arial", "B", 13)
+    pdf.set_font("Times", "B", 14)
     pdf.cell(0, 10, "Datos de captura", ln=True, fill=True)
 
     campo("Fecha de registro", fecha)
@@ -58,44 +70,76 @@ def generar_reporte_pdf(datos, ruta_salida=None):
     campo("Lugar de captura", tecnico_data.get("sede", "No registrado"))
 
     pdf.ln(5)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "Observaciones generales", ln=True)
-    pdf.set_font("Arial", "", 12)
-    pdf.multi_cell(0, 10, datos.get("observaciones", "Sin observaciones registradas."))
-
-    # === Agregar mapas de topografía corneal ===
-    pdf.ln(5)
-    pdf.set_font("Arial", 'B', 11)
+    pdf.set_font("Times", 'B', 14)
     pdf.cell(0, 8, "Análisis Topográfico Corneal", ln=True)
     pdf.ln(5)
 
-    # Función para insertar mapa en flujo vertical
-    def insertar_mapa_en_fila(mapa_path, label):
-        pdf.set_font("Arial", "B", 11)
-        pdf.cell(0, 10, label, ln=True)
-        if os.path.exists(mapa_path):
-            with Image.open(mapa_path) as img:
-                img_w, img_h = img.size
-                max_w, max_h = 180, 90
-                ratio = min(max_w / img_w, max_h / img_h)
-                new_w = img_w * ratio
-                new_h = img_h * ratio
-                pdf.image(mapa_path, w=new_w, h=new_h)
-        else:
-            pdf.set_fill_color(255, 255, 255)
-            pdf.set_draw_color(0, 0, 0)
-            pdf.cell(180, 90, f"{label} (No disponible)", border=1, ln=True, align="C")
+    def insertar_mapa_par(path1, label1, path2, label2):
+        y_inicial = pdf.get_y()
+        max_altura = 90
+        ancho_img = 85
+
+        def agregar_mapa(path, x, label):
+            pdf.set_xy(x, y_inicial)
+            pdf.set_font("Times", "B", 11)
+            pdf.cell(ancho_img, 6, label, ln=True, align="C")
+            pdf.set_xy(x, y_inicial + 6)
+            if os.path.exists(path):
+                with Image.open(path) as img:
+                    img_w, img_h = img.size
+                    ratio = min(ancho_img / img_w, max_altura / img_h)
+                    w = img_w * ratio
+                    h = img_h * ratio
+                    pdf.image(path, x=x + (ancho_img - w) / 2, y=pdf.get_y(), w=w, h=h)
+            else:
+                pdf.set_fill_color(255, 255, 255)
+                pdf.set_draw_color(0, 0, 0)
+                pdf.rect(x, pdf.get_y(), ancho_img, max_altura)
+                pdf.set_xy(x, pdf.get_y() + max_altura / 2 - 5)
+                pdf.set_font("Times", "", 10)
+                pdf.multi_cell(ancho_img, 5, "Imagen no disponible", align="C")
+
+        agregar_mapa(path1, 10, label1)
+        agregar_mapa(path2, 110, label2)
+        pdf.set_y(y_inicial + max_altura + 10)
+
+    insertar_mapa_par("mapa_tangencial_derecho.jpg", "Tangencial (Ojo Derecho)",
+                      "mapa_diferencia_derecho.jpg", "Diferencia (Ojo Derecho)")
+
+    if not df_derecho.empty:
+        pdf.set_font("Times", "B", 12)
+        pdf.cell(0, 10, "Parámetros cuantitativos (Ojo Derecho)", ln=True)
+        pdf.set_font("DejaVu", "", 11)
+        col_widths = [100, 40]
+        for index, row in df_derecho.iterrows():
+            pdf.cell(col_widths[0], 8, limpiar_texto(row["Parámetro"]), border=1)
+            pdf.cell(col_widths[1], 8, limpiar_texto(str(row["Valor"])), border=1, ln=True)
         pdf.ln(5)
+        pdf.set_font("Times", "", 12)
 
-    # Insertar mapas derecho
-    insertar_mapa_en_fila("mapa_tangencial_derecho.jpg", "Mapa Tangencial (Ojo Derecho)")
-    insertar_mapa_en_fila("mapa_diferencia_derecho.jpg", "Mapa de Diferencia (Ojo Derecho)")
+    if pdf.get_y() > 170:
+        pdf.add_page()
 
-    # Insertar mapas izquierdo
-    insertar_mapa_en_fila("mapa_tangencial_izquierdo.jpg", "Mapa Tangencial (Ojo Izquierdo)")
-    insertar_mapa_en_fila("mapa_diferencia_izquierdo.jpg", "Mapa de Diferencia (Ojo Izquierdo)")
+    insertar_mapa_par("mapa_tangencial_izquierdo.jpg", "Tangencial (Ojo Izquierdo)",
+                      "mapa_diferencia_izquierdo.jpg", "Diferencia (Ojo Izquierdo)")
 
-    pdf.set_font("Arial", '', 10)
+    if not df_izquierdo.empty:
+        pdf.set_font("Times", "B", 12)
+        pdf.cell(0, 10, "Parámetros cuantitativos (Ojo Izquierdo)", ln=True)
+        pdf.set_font("DejaVu", "", 11)
+        for index, row in df_izquierdo.iterrows():
+            pdf.cell(col_widths[0], 8, limpiar_texto(row["Parámetro"]), border=1)
+            pdf.cell(col_widths[1], 8, limpiar_texto(str(row["Valor"])), border=1, ln=True)
+        pdf.ln(5)
+        pdf.set_font("Times", "", 12)
+
+    pdf.ln(5)
+    pdf.set_font("Times", "B", 14)
+    pdf.cell(0, 10, "Observaciones generales", ln=True)
+    pdf.set_font("Times", "", 12)
+    pdf.multi_cell(0, 10, datos.get("observaciones", "Sin observaciones registradas."))
+
+    pdf.set_font("Times", '', 12)
     pdf.multi_cell(0, 6, "Este informe es un preanálisis basado en los datos topográficos capturados. La interpretación médica debe considerar los hallazgos visuales junto con estos resultados, evaluando signos sugestivos de queratocono como el aumento de la curvatura, desplazamiento inferior del punto más delgado y asimetría corneal.")
 
     path_pdf = ruta_salida or f"{dni}_{fecha}_reporte.pdf"
@@ -105,7 +149,6 @@ def generar_reporte_pdf(datos, ruta_salida=None):
         blob = bucket.blob(f"pacientes/{dni}/{fecha}/{os.path.basename(path_pdf)}")
         blob.upload_from_filename(path_pdf)
 
-    # Enviar correo
     correo_paciente = paciente_data.get("correo_contacto")
     if correo_paciente:
         remitente = "gabrielasanchezd08@gmail.com"
@@ -121,9 +164,7 @@ def generar_reporte_pdf(datos, ruta_salida=None):
             f"Este documento contiene información capturada mediante herramientas de topografía corneal. Aún no incluye una interpretación médica o diagnóstico clínico oficial.\n\n"
             f"Una vez que el médico especialista revise esta información y registre su diagnóstico, usted recibirá un segundo correo con dicho informe.\n\n"
             f"Le recomendamos no tomar decisiones clínicas basadas únicamente en el presente documento. Para cualquier consulta, no dude en comunicarse con nosotros por los canales habituales.\n\n"
-            f"Atentamente,\n"
-            f"Unidad de Diagnóstico Corneal\n"
-            f"Centro de Salud Visual"
+            f"Atentamente,\nUnidad de Diagnóstico Corneal\nCentro de Salud Visual"
         )
 
         try:
