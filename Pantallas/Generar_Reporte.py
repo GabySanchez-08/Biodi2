@@ -36,7 +36,6 @@ def generar_reporte_pdf(datos, ruta_salida=None):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    pdf.add_font('DejaVu', '', 'fonts/DejaVuSans.ttf', uni=True)
 
     pdf.set_font("Times", "B", 16)
     pdf.cell(0, 10, "REPORTE DE EVALUACIÓN CORNEAL", ln=True, align="C")
@@ -115,7 +114,6 @@ def generar_reporte_pdf(datos, ruta_salida=None):
         pdf.set_font("Times", "B", 12)
         pdf.cell(0, 10, "Parámetros cuantitativos (Ojo Derecho)", ln=True, align="C")
 
-        pdf.set_font("DejaVu", "", 9)
         col_widths = [90, 40]
         total_width = sum(col_widths)
         x_centro = (210 - total_width) / 2  # A4 width = 210mm
@@ -141,7 +139,6 @@ def generar_reporte_pdf(datos, ruta_salida=None):
         pdf.set_font("Times", "B", 12)
         pdf.cell(0, 10, "Parámetros cuantitativos (Ojo Izquierdo)", ln=True, align="C")
 
-        pdf.set_font("DejaVu", "", 9)
         for index, row in df_izquierdo.iterrows():
             pdf.set_x(x_centro)
             pdf.cell(col_widths[0], 7, limpiar_texto(row["Parámetro"]), border=1, align='C')

@@ -148,9 +148,9 @@ def calcular_parametros_clinicos(tang_map, elev_map, mm_per_px=0.03):
         "K2 (D)": round(Ks, 2) if not np.isnan(Ks) else "",
         "Km (D)": round(AvgK, 2) if not np.isnan(AvgK) else "",
         "CYL": round(CYL, 2) if not np.isnan(CYL) else "",
-        "Elev_Max (μm)": round(elev_max, 1) if not np.isnan(elev_max) else "",
-        "Elev_Min (μm)": round(elev_min, 1) if not np.isnan(elev_min) else "",
-        "ΔElev (μm)": round(delta_elev, 1) if not np.isnan(delta_elev) else "",
+        "Elev_Max (um)": round(elev_max, 1) if not np.isnan(elev_max) else "",
+        "Elev_Min (m)": round(elev_min, 1) if not np.isnan(elev_min) else "",
+        "diff_Elev (um)": round(delta_elev, 1) if not np.isnan(delta_elev) else "",
         
         # Parámetros adicionales
         "sim-K1": round(sim_K1, 2) if not np.isnan(sim_K1) else "",

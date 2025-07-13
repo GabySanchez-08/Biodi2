@@ -345,6 +345,9 @@ class Capturar_Ojos(Base_App):
         if os.path.exists(path):
             frame = cv2.imread(path)
             self.imagen_original = frame.copy()
+            _, buf = cv2.imencode(".jpg", frame)
+            img_base64 = buf.tobytes()
+            self.imagen_preview.src_base64 = base64.b64encode(img_base64).decode('utf-8')
             self.captura_realizada = True
             self.borrar_btn.disabled = False
             self.capturar_btn.disabled = True
@@ -364,8 +367,28 @@ class Capturar_Ojos(Base_App):
             return
         self.detener_stream()
         from Pantallas.Formulario_Paciente import Formulario_Paciente
+        self.eliminar_mapas_generados()
+
         Formulario_Paciente(self.page, usuario=self.usuario, rol=self.rol).mostrar()
 
+    def eliminar_mapas_generados(self):
+        archivos = [
+            "mapa_tangencial.jpg",
+            "mapa_diferencia.jpg",
+            "mapa_tangencial_derecho.jpg",
+            "mapa_tangencial_izquierdo.jpg",
+            "mapa_diferencia_derecho.jpg",
+            "mapa_diferencia_izquierdo.jpg"
+        ]
+
+        for archivo in archivos:
+            if os.path.exists(archivo):
+                try:
+                    os.remove(archivo)
+                    print(f"[INFO] Archivo eliminado: {archivo}")
+                except Exception as e:
+                    print(f"[ERROR] No se pudo eliminar {archivo}: {e}")
+                    
     def volver_menu(self, e):
         print("[INFO] Botón 'Volver al menú' presionado")
         self.detener_stream()
@@ -449,7 +472,7 @@ class Capturar_Ojos(Base_App):
         gray_eq = cv2.equalizeHist(gray)
         gray_red = self.reducir_grises(gray_eq, 8)
 
-        _, mask = cv2.threshold(gray_red, 70, 255, cv2.THRESH_BINARY_INV)
+        _, mask = cv2.threshold(gray_red, 75, 255, cv2.THRESH_BINARY_INV)
         contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         mejor_radio = 0
