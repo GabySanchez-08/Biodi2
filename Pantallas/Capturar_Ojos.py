@@ -17,6 +17,8 @@ class Capturar_Ojos(Base_App):
         self.historial_iris = []
         self.recorte_frame = 0.7 # Este es el zoom/recorte que se le hace al frame para que se vea de más cerca
         self.radio_guia = 150
+        self.candidatos = []
+        self.puntajes = []
 
     def mostrar(self):
         self.limpiar()
@@ -188,7 +190,7 @@ class Capturar_Ojos(Base_App):
 
                     # Evaluar alineación con centro y tamaño esperado
                     distancia_centro = np.linalg.norm([cx_fixed - cx_iris, cy_fixed - cy_iris])
-                    tolerancia_posicion = 10
+                    tolerancia_posicion = 15
 
                     radio_relativo = r_iris / self.radio_guia
                     bien_centrado = distancia_centro < tolerancia_posicion
@@ -197,15 +199,26 @@ class Capturar_Ojos(Base_App):
                     # === NUEVO: usar historial para capturar solo si está alineado varios frames ===
                     if bien_centrado and radio_esperado:
                         self.historial_iris.append(True)
+                        ret, frame = self.cap.read()
+                        if not ret:
+                            continue
+                        frame_crop, roi_ojo = self.obtener_marco_limites(ret, frame)
+
+                        score = self.sharpness(roi_ojo)
+                        self.puntajes.append(score)
+                        self.candidatos.append(roi_ojo)
+                        print("capturando temporal")
+
                     else:
                         self.historial_iris.append(False)
 
                     # Mantener solo los últimos 5 frames
-                    if len(self.historial_iris) > 3:
+                    if len(self.historial_iris) > 5:
                         self.historial_iris.pop(0)
 
+                    #print(self.historial_iris)
                     # Verificar si ha estado alineado por 5 frames seguidos
-                    if len(self.historial_iris) == 3 and all(self.historial_iris):
+                    if len(self.historial_iris) == 5 and all(self.historial_iris):
                         print(f"🟢 Iris estable durante 3 frames. Capturando… (radio: {r_iris:.1f}, centro Δ: {distancia_centro:.1f})")
                         self.capturar(None)
                         self.historial_iris.clear()
@@ -243,35 +256,34 @@ class Capturar_Ojos(Base_App):
     def capturar(self, e):
         if not self.cap.isOpened():
             return
-        candidatos = []
-        puntajes = []
 
-        for i in range(15):
+        for i in range(6-len(self.candidatos)):
             ret, frame = self.cap.read()
             if not ret:
                 continue
 
             frame_crop, roi_ojo = self.obtener_marco_limites(ret, frame)
 
-            nombre_candidata = f"candidata{i+1}.jpg"
+            #nombre_candidata = f"candidata{i+1}.jpg"
             #cv2.imwrite(nombre_candidata, roi_ojo)
 
             score = self.sharpness(roi_ojo)
-            puntajes.append(score)
-            candidatos.append(roi_ojo)
+            self.puntajes.append(score)
+            self.candidatos.append(roi_ojo)
 
             #print(f"[🔍] Nitidez de {nombre_candidata}: {score:.2f}")
 
-        if candidatos:
-            indice_mejor = puntajes.index(max(puntajes))
-            mejor = candidatos[indice_mejor]
+        if self.candidatos:
+            indice_mejor = self.puntajes.index(max(self.puntajes))
+            mejor = self.candidatos[indice_mejor]
             nombre_mejor = f"candidata{indice_mejor+1}.jpg"
             #print(f"[✅] Imagen más nítida: {nombre_mejor} con puntaje {puntajes[indice_mejor]:.2f}")
 
             filename = "ojo_derecho.jpg" if self.escaneando_derecho else "ojo_izquierdo.jpg"
             cv2.imwrite(filename, mejor)
-
             self.procesar_post_captura(mejor)
+            self.candidatos = []
+            self.puntajes = []
 
     def borrar(self, e):
         ojo = "ojo_derecho.jpg" if self.escaneando_derecho else "ojo_izquierdo.jpg"

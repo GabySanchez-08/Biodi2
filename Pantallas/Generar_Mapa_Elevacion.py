@@ -449,3 +449,6 @@ def generar_mapas_y_sacar_numeros(image_path, output_path1="mapa_diferencia.jpg"
     plt.close()
 
     return Zgrid, delta_zq
+
+
+

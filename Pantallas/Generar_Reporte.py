@@ -6,6 +6,7 @@ from Pantallas.Generar_Topografia import generar_mapa_topografico
 from PIL import Image
 import smtplib
 from email.message import EmailMessage
+import pandas as pd  # asegúrate de tenerlo arriba
 
 def limpiar_texto(texto):
     if not isinstance(texto, str):
@@ -29,9 +30,8 @@ def generar_reporte_pdf(datos, ruta_salida=None):
     usuario_doc = db.collection("usuarios").document(capturado_por).get() if capturado_por != "offline" else None
     tecnico_data = usuario_doc.to_dict() if usuario_doc and usuario_doc.exists else {}
 
-    df_derecho = generar_mapa_topografico("ojo_derecho.jpg") if os.path.exists("ojo_derecho.jpg") else []
-    df_izquierdo = generar_mapa_topografico("ojo_izquierdo.jpg") if os.path.exists("ojo_izquierdo.jpg") else []
-
+    df_derecho = generar_mapa_topografico("ojo_derecho.jpg") if os.path.exists("ojo_derecho.jpg") else pd.DataFrame()
+    df_izquierdo = generar_mapa_topografico("ojo_izquierdo.jpg") if os.path.exists("ojo_izquierdo.jpg") else pd.DataFrame()
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -103,12 +103,12 @@ def generar_reporte_pdf(datos, ruta_salida=None):
         agregar_mapa(path2, 110, label2)
         pdf.set_y(y_inicial + max_altura + 10)
 
-    insertar_mapa_par("mapa_tangencial_derecho.jpg", "Tangencial (Ojo Derecho)",
-                      "mapa_diferencia_derecho.jpg", "Diferencia (Ojo Derecho)")
 
     # Eliminar mapas del ojo derecho
-    for f in ["mapa_tangencial_derecho.jpg", "mapa_diferencia_derecho.jpg"]:
-        if os.path.exists(f):
+    if os.path.exists("mapa_tangencial_derecho.jpg") and os.path.exists("mapa_diferencia_derecho.jpg"):
+        insertar_mapa_par("mapa_tangencial_derecho.jpg", "Tangencial (Ojo Derecho)",
+                        "mapa_diferencia_derecho.jpg", "Diferencia (Ojo Derecho)")
+        for f in ["mapa_tangencial_derecho.jpg", "mapa_diferencia_derecho.jpg"]:
             os.remove(f)
 
     if not df_derecho.empty:
@@ -131,14 +131,12 @@ def generar_reporte_pdf(datos, ruta_salida=None):
     if pdf.get_y() > 170:
         pdf.add_page()
 
-    insertar_mapa_par("mapa_tangencial_izquierdo.jpg", "Tangencial (Ojo Izquierdo)",
-                      "mapa_diferencia_izquierdo.jpg", "Diferencia (Ojo Izquierdo)")
-
-    # Eliminar mapas del ojo izquierdo
-    for f in ["mapa_tangencial_izquierdo.jpg", "mapa_diferencia_izquierdo.jpg"]:
-        if os.path.exists(f):
+    if os.path.exists("mapa_tangencial_izquierdo.jpg") and os.path.exists("mapa_diferencia_izquierdo.jpg"):
+        insertar_mapa_par("mapa_tangencial_izquierdo.jpg", "Tangencial (Ojo Izquierdo)",
+                        "mapa_diferencia_izquierdo.jpg", "Diferencia (Ojo Izquierdo)")
+        for f in ["mapa_tangencial_izquierdo.jpg", "mapa_diferencia_izquierdo.jpg"]:
             os.remove(f)
-            
+                
     if not df_izquierdo.empty:
         pdf.set_font("Times", "B", 12)
         pdf.cell(0, 10, "Parámetros cuantitativos (Ojo Izquierdo)", ln=True, align="C")
